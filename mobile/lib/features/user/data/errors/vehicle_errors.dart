@@ -1,0 +1,1 @@
+class VehicleNotFound implements Exception {}

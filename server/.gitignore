@@ -1,0 +1,10 @@
+/__pycache__/
+venv
+.env
+
+# Python
+**/__pycache__/
+*.pyc
+# Local DB
+server/*.db
+server/*.sqlite3

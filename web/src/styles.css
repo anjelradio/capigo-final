@@ -1,0 +1,111 @@
+@import url('https://fonts.googleapis.com/css2?family=Space+Grotesk:wght@300..700&display=swap');
+@import 'tailwindcss';
+@import 'ngx-toastr/toastr';
+@import 'leaflet/dist/leaflet.css';
+
+:root {
+  font-family: 'Space Grotesk', sans-serif;
+
+  --auth-control-radius: 1.5rem;
+
+  --app-bg-base: #1f242b;
+  --app-bg-mid: #24303e;
+  --app-bg-deep: #161b21;
+  --app-bg-stripe: rgba(71, 108, 145, 0.22);
+
+  --app-text-on-dark: #f2f4f7;
+  --app-text-on-dark-muted: #b6bec8;
+
+  --app-accent: #f4bf14;
+  --app-accent-hover: #dfac0f;
+  --app-accent-text: #1f1b12;
+
+  --app-nav-bg: rgba(58, 63, 70, 0.88);
+  --app-nav-border: rgba(255, 255, 255, 0.14);
+  --app-nav-text: #c5ccd5;
+
+  --app-card-bg: #ffffff;
+  --app-card-border: rgba(17, 24, 39, 0.1);
+  --app-card-soft-bg: #ececec;
+  --app-card-soft-border: #d8d8d8;
+  --app-text-primary: #171a1f;
+  --app-text-secondary: #596272;
+
+  --auth-bg-start: #edf2f7;
+  --auth-bg-mid: #e2e8f0;
+  --auth-bg-end: #d6dee8;
+
+  --auth-text-primary: #1f2937;
+  --auth-text-secondary: #4b5563;
+  --auth-label: #374151;
+
+  --auth-brand-bg: rgba(255, 255, 255, 0.72);
+  --auth-brand-border: rgba(63, 127, 154, 0.28);
+  --auth-brand-text: #2f5f75;
+
+  --auth-input-bg: rgba(255, 255, 255, 0.74);
+  --auth-input-border: rgba(63, 127, 154, 0.35);
+  --auth-input-focus: var(--app-accent);
+  --auth-input-placeholder: #9ca3af;
+
+  --auth-button-bg: var(--app-accent);
+  --auth-button-hover: var(--app-accent-hover);
+  --auth-button-text: var(--app-accent-text);
+
+  --auth-link: #8a6d11;
+  --auth-image-shadow: rgba(63, 127, 154, 0.22);
+
+  --dashboard-body-bg: var(--app-bg-base);
+  --dashboard-bg-start: var(--app-bg-base);
+  --dashboard-bg-mid: var(--app-bg-mid);
+  --dashboard-bg-end: var(--app-bg-deep);
+  --dashboard-nav-blue: var(--app-accent);
+  --dashboard-card-default: var(--app-card-bg);
+  --dashboard-card-default-border: var(--app-card-border);
+  --dashboard-card-yellow: var(--app-card-bg);
+  --dashboard-card-aqua: var(--app-card-bg);
+  --dashboard-card-soft-blue: var(--app-card-bg);
+  --dashboard-card-soft-sand: var(--app-card-bg);
+}
+
+body {
+  font-family: 'Space Grotesk', sans-serif;
+  background-color: var(--dashboard-body-bg);
+}
+
+.app-dashboard-bg {
+  background-color: var(--app-bg-base);
+}
+
+.app-auth-bg {
+  --auth-text-primary: var(--app-text-on-dark);
+  --auth-text-secondary: var(--app-text-on-dark-muted);
+  --auth-label: #dce2e9;
+  --auth-brand-bg: rgba(34, 41, 50, 0.88);
+  --auth-brand-border: rgba(255, 255, 255, 0.16);
+  --auth-brand-text: var(--app-text-on-dark);
+  --auth-input-bg: rgba(255, 255, 255, 0.94);
+  --auth-input-border: rgba(255, 255, 255, 0.32);
+}
+
+.toast-container .ngx-toastr {
+  border-radius: 14px;
+  box-shadow: 0 12px 30px rgba(30, 58, 95, 0.18);
+  font-family: 'Space Grotesk', sans-serif;
+}
+
+.toast-container .ngx-toastr.toast-success {
+  background-color: #1f7a59;
+}
+
+.toast-container .ngx-toastr.toast-error {
+  background-color: #b93c4b;
+}
+
+.toast-container .ngx-toastr.toast-info {
+  background-color: #3f7f9a;
+}
+
+.toast-container .ngx-toastr.toast-warning {
+  background-color: #b0892d;
+}

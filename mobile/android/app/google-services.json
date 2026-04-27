@@ -1,0 +1,29 @@
+{
+  "project_info": {
+    "project_number": "950649922650",
+    "project_id": "capigo-mobile",
+    "storage_bucket": "capigo-mobile.firebasestorage.app"
+  },
+  "client": [
+    {
+      "client_info": {
+        "mobilesdk_app_id": "1:950649922650:android:bf310c925c4bbc18456463",
+        "android_client_info": {
+          "package_name": "com.example.mobile"
+        }
+      },
+      "oauth_client": [],
+      "api_key": [
+        {
+          "current_key": "AIzaSyBJlR9oEKQKqW37CIXAdwuLcQfg9p7Gwp8"
+        }
+      ],
+      "services": {
+        "appinvite_service": {
+          "other_platform_oauth_client": []
+        }
+      }
+    }
+  ],
+  "configuration_version": "1"
+}
