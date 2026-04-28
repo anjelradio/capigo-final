@@ -40,6 +40,7 @@ class Settings(BaseSettings):
             "http://127.0.0.1:5173",
             "http://localhost:4200",
             "http://127.0.0.1:4200",
+            "https://capigo-final.vercel.app",
         ],
         env="CORS_ORIGINS",
     )
