@@ -7,6 +7,7 @@ from app.dependencies.auth import CurrentUser, DBSession
 from app.modules.ai.services import IncidentClassificationService
 from app.modules.incidents.schemas import (
     ActiveIncidentDetailRead,
+    IncidentActionResponse,
     ClientServiceDetailRead,
     ClientServiceListResponse,
     IncidentCreateResponse,
@@ -121,6 +122,18 @@ def list_my_pending_feedback_reminders(db: DBSession, user: CurrentUser):
 @router.get("/{incident_id}", response_model=IncidentRead, status_code=status.HTTP_200_OK)
 def get_incident_by_id(db: DBSession, incident_id: UUID, user: CurrentUser):
     return IncidentService(db).get_incident_by_id(user.id, incident_id)
+
+
+@router.post(
+    "/{incident_id}/cancel",
+    response_model=IncidentActionResponse,
+    status_code=status.HTTP_200_OK,
+)
+def cancel_my_incident(db: DBSession, incident_id: UUID, user: CurrentUser):
+    return IncidentService(db).cancel_my_incident(
+        user_id=user.id,
+        incident_id=incident_id,
+    )
 
 
 @router.post(

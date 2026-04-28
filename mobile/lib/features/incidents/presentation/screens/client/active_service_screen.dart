@@ -213,6 +213,35 @@ class _ActiveServiceScreenState extends ConsumerState<ActiveServiceScreen> {
                               ),
                               const SizedBox(height: 12),
                               ActiveServiceDetailsSection(detail: detail),
+                              const SizedBox(height: 14),
+                              SizedBox(
+                                width: double.infinity,
+                                child: OutlinedButton.icon(
+                                  onPressed: activeState.isCancelling
+                                      ? null
+                                      : () => _confirmAndCancel(activeNotifier),
+                                  icon: activeState.isCancelling
+                                      ? const SizedBox(
+                                          width: 16,
+                                          height: 16,
+                                          child: CircularProgressIndicator(
+                                            strokeWidth: 2,
+                                          ),
+                                        )
+                                      : const Icon(Icons.cancel_rounded),
+                                  label: Text(
+                                    activeState.isCancelling
+                                        ? 'Cancelando...'
+                                        : 'Cancelar solicitud',
+                                  ),
+                                  style: OutlinedButton.styleFrom(
+                                    foregroundColor: const Color(0xFFF59E9E),
+                                    side: const BorderSide(
+                                      color: Color(0xFF8C4A4A),
+                                    ),
+                                  ),
+                                ),
+                              ),
                             ],
                           ),
                         const SizedBox(height: 24),
@@ -225,6 +254,41 @@ class _ActiveServiceScreenState extends ConsumerState<ActiveServiceScreen> {
           ),
         ],
       ),
+    );
+  }
+
+  Future<void> _confirmAndCancel(ActiveServiceNotifier activeNotifier) async {
+    final shouldCancel = await showDialog<bool>(
+      context: context,
+      builder: (dialogContext) {
+        return AlertDialog(
+          title: const Text('Cancelar solicitud'),
+          content: const Text(
+            'Se cancelara el servicio para el taller y mecanico asignados. Esta accion no se puede deshacer.',
+          ),
+          actions: [
+            TextButton(
+              onPressed: () => Navigator.of(dialogContext).pop(false),
+              child: const Text('Volver'),
+            ),
+            FilledButton(
+              onPressed: () => Navigator.of(dialogContext).pop(true),
+              child: const Text('Cancelar servicio'),
+            ),
+          ],
+        );
+      },
+    );
+
+    if (shouldCancel != true) return;
+
+    final success = await activeNotifier.cancelActiveIncident();
+    if (!mounted) return;
+    if (!success) return;
+
+    context.go('/home/client');
+    ScaffoldMessenger.of(context).showSnackBar(
+      const SnackBar(content: Text('Solicitud cancelada correctamente')),
     );
   }
 }

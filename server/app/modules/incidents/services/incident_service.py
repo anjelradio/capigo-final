@@ -1,6 +1,7 @@
 import hashlib
 import logging
 import time
+from datetime import UTC, datetime
 from uuid import UUID
 
 import httpx
@@ -8,6 +9,7 @@ from fastapi import HTTPException, UploadFile
 from sqlmodel import Session, select
 
 from app.core.config import settings
+from app.modules.assignments.models import AssignmentStatus
 from app.modules.assignments.repositories import RequestAssignmentRepository
 from app.modules.incidents.models import (
     Evidence,
@@ -24,6 +26,7 @@ from app.modules.incidents.repositories import (
     IncidentServiceReportRepository,
 )
 from app.modules.repair_shop.services.shop_profile_service import ShopProfileService
+from app.modules.repair_shop.repositories import ShopMechanicRepository
 from app.modules.repair_shop.repositories import RepairShopRepository
 from app.modules.user.models import UserRole
 from app.modules.user.repositories import UserRepository, VehicleRepository
@@ -42,6 +45,7 @@ class IncidentService:
         self.incident_service_report = IncidentServiceReportRepository(db)
         self.request_assignment = RequestAssignmentRepository(db)
         self.repair_shop = RepairShopRepository(db)
+        self.shop_mechanic = ShopMechanicRepository(db)
 
     def create_incident(
         self,
@@ -130,6 +134,67 @@ class IncidentService:
             response.append(self._to_incident_read(incident, evidences))
 
         return response
+
+    def cancel_my_incident(self, *, user_id: UUID, incident_id: UUID) -> dict:
+        self._validate_client_user(user_id)
+
+        incident = self.incident.get_by_id_and_user(incident_id, user_id)
+        if not incident:
+            raise HTTPException(status_code=404, detail="Incidente no encontrado")
+
+        cancellable_statuses = {
+            IncidentStatus.PENDING,
+            IncidentStatus.CLASSIFYING,
+            IncidentStatus.CLASSIFIED,
+            IncidentStatus.SEARCHING_SHOP,
+            IncidentStatus.ASSIGNED,
+            IncidentStatus.ON_THE_WAY,
+            IncidentStatus.ARRIVED,
+        }
+        if incident.status not in cancellable_statuses:
+            raise HTTPException(
+                status_code=409,
+                detail="No se puede cancelar el incidente en su estado actual",
+            )
+
+        assignments = self.request_assignment.list_by_incident(incident.id)
+        for assignment in assignments:
+            if assignment.status in (AssignmentStatus.PENDING, AssignmentStatus.ACCEPTED):
+                assignment.status = AssignmentStatus.CANCELLED
+                assignment.responded_at = datetime.now(UTC)
+                self.db.add(assignment)
+
+                if assignment.mechanic_id:
+                    mechanic = self.shop_mechanic.get_by_id(assignment.mechanic_id)
+                    if mechanic:
+                        mechanic.is_available = True
+                        self.db.add(mechanic)
+
+        incident.status = IncidentStatus.CANCELLED
+        self.db.add(incident)
+
+        try:
+            self.db.commit()
+        except Exception:
+            self.db.rollback()
+            raise
+
+        self._emit_incident_realtime_event(
+            incident_id=incident.id,
+            event_type="incident.status.changed",
+            payload={
+                "status": IncidentStatus.CANCELLED.value,
+                "description": "Incidente cancelado por el cliente",
+                "cancelled_by": "client",
+            },
+            status=IncidentStatus.CANCELLED,
+        )
+
+        return {
+            "incident_id": incident.id,
+            "status": IncidentStatus.CANCELLED.value,
+            "detail": "Incidente cancelado",
+        }
 
     def get_active_incident_detail(self, user_id: UUID) -> dict | None:
         self._validate_client_user(user_id)

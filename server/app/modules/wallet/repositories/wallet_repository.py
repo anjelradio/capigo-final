@@ -15,3 +15,7 @@ class WalletRepository:
             Wallet.state == True,
         )
         return self.db.exec(query).first()
+
+    def create(self, wallet: Wallet) -> Wallet:
+        self.db.add(wallet)
+        return wallet

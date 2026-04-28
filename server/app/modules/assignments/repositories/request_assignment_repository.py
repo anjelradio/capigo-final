@@ -51,6 +51,17 @@ class RequestAssignmentRepository:
         )
         return list(self.db.exec(query).all())
 
+    def list_by_incident(self, incident_id: UUID) -> list[RequestAssignment]:
+        query = (
+            select(RequestAssignment)
+            .where(
+                RequestAssignment.incident_id == incident_id,
+                RequestAssignment.state == True,
+            )
+            .order_by(RequestAssignment.created_date.asc())
+        )
+        return list(self.db.exec(query).all())
+
     def list_pending_active_by_shop(self, shop_id: UUID, now_utc: datetime) -> list[RequestAssignment]:
         query = (
             select(RequestAssignment)

@@ -59,6 +59,12 @@ class IncidentCreateResponse(SQLModel):
     incident: IncidentRead
 
 
+class IncidentActionResponse(SQLModel):
+    incident_id: UUID
+    status: str
+    detail: str
+
+
 class IncidentFeedbackCreateRequest(SQLModel):
     rating: int
     comment: str | None = None

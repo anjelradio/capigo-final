@@ -1,6 +1,5 @@
 import 'dart:async';
 
-import 'package:flutter/foundation.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:flutter_riverpod/legacy.dart';
 import 'package:geolocator/geolocator.dart';
@@ -327,16 +326,17 @@ class MechanicActiveAssignmentNotifier
     required double latitude,
     required double longitude,
   }) {
-    if (!kDebugMode) {
-      return _GeoPoint(latitude: latitude, longitude: longitude);
-    }
-
-    const longitudeStep = 0.00008;
-    final adjustedLongitude =
-        longitude + (_locationSimulationStep * longitudeStep);
-    _locationSimulationStep += 1;
-
-    return _GeoPoint(latitude: latitude, longitude: adjustedLongitude);
+    // Simulacion de movimiento desactivada para enviar la ubicacion real.
+    // Si en algun momento deseas reactivarla en debug, puedes restaurar
+    // este bloque:
+    // if (kDebugMode) {
+    //   const longitudeStep = 0.00008;
+    //   final adjustedLongitude =
+    //       longitude + (_locationSimulationStep * longitudeStep);
+    //   _locationSimulationStep += 1;
+    //   return _GeoPoint(latitude: latitude, longitude: adjustedLongitude);
+    // }
+    return _GeoPoint(latitude: latitude, longitude: longitude);
   }
 
   @override

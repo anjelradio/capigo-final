@@ -183,4 +183,16 @@ class IncidentApi {
       throw CustomError('No fue posible cargar el detalle del servicio');
     }
   }
+
+  Future<void> cancelIncident({required String incidentId}) async {
+    try {
+      await dio.post('/incidents/$incidentId/cancel');
+    } on DioException catch (e) {
+      _throwParsedDioError(e, 'No fue posible cancelar el servicio');
+    } on CustomError {
+      rethrow;
+    } catch (_) {
+      throw CustomError('No fue posible cancelar el servicio');
+    }
+  }
 }

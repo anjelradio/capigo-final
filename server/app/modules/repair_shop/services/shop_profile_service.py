@@ -13,6 +13,8 @@ from app.modules.repair_shop.schemas import (
     RepairShopProfileUpdateRequest,
 )
 from app.modules.user.models import User, UserRole
+from app.modules.wallet.models import Wallet
+from app.modules.wallet.repositories import WalletRepository
 
 from .base_service import RepairShopBaseService
 
@@ -122,6 +124,7 @@ class ShopProfileService(RepairShopBaseService):
 
     def create(self, payload: RepairShopCreate, owner_id: UUID) -> tuple[RepairShop, User]:
         owner = self._get_user_or_404(owner_id)
+        wallet_repository = WalletRepository(self.db)
 
         if owner.role != UserRole.CLIENT:
             raise HTTPException(
@@ -152,6 +155,7 @@ class ShopProfileService(RepairShopBaseService):
             )
 
             self.repair_shop.create(shop)
+            wallet_repository.create(Wallet(repair_shop_id=shop.id))
             owner.role = UserRole.OWNER
             self.db.add(owner)
             self.db.flush()

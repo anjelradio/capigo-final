@@ -69,4 +69,8 @@ class IncidentRepository {
     }
     return IncidentMapper.clientServiceDetailFromJson(json);
   }
+
+  Future<void> cancelIncident({required String incidentId}) {
+    return _incidentApi.cancelIncident(incidentId: incidentId);
+  }
 }
