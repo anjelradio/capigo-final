@@ -1,4 +1,5 @@
 import 'package:mobile/features/incidents/domain/domain.dart';
+import 'package:mobile/features/shared/shared.dart';
 import 'package:mobile/features/user/domain/domain.dart';
 
 class IncidentMapper {
@@ -24,8 +25,10 @@ class IncidentMapper {
         deliveryPrice: _asDouble(incidentJson['delivery_price']),
         distanceKm: _asDouble(incidentJson['distance_km']),
         createdDate:
-            DateTime.tryParse('${incidentJson['created_date'] ?? ''}') ??
-            DateTime.now(),
+            BoliviaDateTimeFormatter.parseServerDateTime(
+              incidentJson['created_date'],
+            ) ??
+            DateTime.now().toUtc(),
       ),
       vehicle: Vehicle.fromJson(vehicleJson),
       evidences: evidenceJsonList
@@ -61,5 +64,84 @@ class IncidentMapper {
     if (value == null) return null;
     if (value is num) return value.toDouble();
     return double.tryParse('$value');
+  }
+
+  static List<PendingFeedbackReminder> pendingFeedbackRemindersFromJson(
+    Map<String, dynamic>? json,
+  ) {
+    final remindersJson = (json?['reminders'] as List?) ?? const [];
+    return remindersJson
+        .whereType<Map>()
+        .map((item) => item.cast<String, dynamic>())
+        .map(
+          (item) => PendingFeedbackReminder(
+            incidentId: '${item['incident_id'] ?? ''}',
+            description: (item['description'] as String?)?.trim() ?? '',
+            problemName: item['problem_name'] as String?,
+            completedAt: BoliviaDateTimeFormatter.parseServerDateTime(
+              item['completed_at'],
+            ),
+          ),
+        )
+        .where((reminder) => reminder.incidentId.trim().isNotEmpty)
+        .toList();
+  }
+
+  static List<ClientServiceItem> clientServiceItemsFromJson(
+    Map<String, dynamic>? json,
+  ) {
+    final servicesJson = (json?['services'] as List?) ?? const [];
+    return servicesJson
+        .whereType<Map>()
+        .map((item) => item.cast<String, dynamic>())
+        .map(
+          (item) => ClientServiceItem(
+            incidentId: '${item['incident_id'] ?? ''}',
+            status: '${item['status'] ?? ''}',
+            createdDate:
+                BoliviaDateTimeFormatter.parseServerDateTime(
+                  item['created_date'],
+                ) ??
+                DateTime.now().toUtc(),
+            updatedDate:
+                BoliviaDateTimeFormatter.parseServerDateTime(
+                  item['updated_date'],
+                ) ??
+                DateTime.now().toUtc(),
+            description: item['description'] as String?,
+            problemName: item['problem_name'] as String?,
+            vehiclePlate: item['vehicle_plate'] as String?,
+          ),
+        )
+        .where((item) => item.incidentId.trim().isNotEmpty)
+        .toList();
+  }
+
+  static ClientServiceDetail clientServiceDetailFromJson(
+    Map<String, dynamic> json,
+  ) {
+    final vehicleJson =
+        (json['vehicle'] as Map?)?.cast<String, dynamic>() ?? {};
+
+    return ClientServiceDetail(
+      incidentId: '${json['incident_id'] ?? ''}',
+      status: '${json['status'] ?? ''}',
+      createdDate:
+          BoliviaDateTimeFormatter.parseServerDateTime(json['created_date']) ??
+          DateTime.now().toUtc(),
+      updatedDate:
+          BoliviaDateTimeFormatter.parseServerDateTime(json['updated_date']) ??
+          DateTime.now().toUtc(),
+      vehicle: Vehicle.fromJson(vehicleJson),
+      description: json['description'] as String?,
+      problemName: json['problem_name'] as String?,
+      deliveryPrice: _asDouble(json['delivery_price']),
+      distanceKm: _asDouble(json['distance_km']),
+      address: json['address'] as String?,
+      repairShopName: json['repair_shop_name'] as String?,
+      mechanicName: json['mechanic_name'] as String?,
+      reportDescription: json['report_description'] as String?,
+      laborPrice: _asDouble(json['labor_price']),
+    );
   }
 }

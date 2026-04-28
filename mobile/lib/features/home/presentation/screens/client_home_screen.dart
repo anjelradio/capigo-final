@@ -1,10 +1,57 @@
 import 'package:flutter/material.dart';
+import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:go_router/go_router.dart';
 import 'package:mobile/config/theme/app_theme.dart';
 import 'package:mobile/features/home/presentation/widgets/widgets.dart';
+import 'package:mobile/features/incidents/presentation/widgets/widgets.dart';
 
-class ClientHomeScreen extends StatelessWidget {
-  const ClientHomeScreen({super.key});
+class ClientHomeScreen extends ConsumerStatefulWidget {
+  const ClientHomeScreen({super.key, this.reviewIncidentId});
+
+  final String? reviewIncidentId;
+
+  @override
+  ConsumerState<ClientHomeScreen> createState() => _ClientHomeScreenState();
+}
+
+class _ClientHomeScreenState extends ConsumerState<ClientHomeScreen> {
+  bool _hasOpenedReviewSheet = false;
+
+  @override
+  void initState() {
+    super.initState();
+    WidgetsBinding.instance.addPostFrameCallback((_) {
+      _openReviewSheetIfNeeded();
+    });
+  }
+
+  @override
+  void didUpdateWidget(covariant ClientHomeScreen oldWidget) {
+    super.didUpdateWidget(oldWidget);
+    if (oldWidget.reviewIncidentId != widget.reviewIncidentId) {
+      _hasOpenedReviewSheet = false;
+      WidgetsBinding.instance.addPostFrameCallback((_) {
+        _openReviewSheetIfNeeded();
+      });
+    }
+  }
+
+  Future<void> _openReviewSheetIfNeeded() async {
+    if (!mounted || _hasOpenedReviewSheet) return;
+    final incidentId = (widget.reviewIncidentId ?? '').trim();
+    if (incidentId.isEmpty) return;
+
+    _hasOpenedReviewSheet = true;
+    await showModalBottomSheet<bool>(
+      context: context,
+      isScrollControlled: true,
+      backgroundColor: Colors.transparent,
+      builder: (_) => IncidentFeedbackSheet(incidentId: incidentId),
+    );
+
+    if (!mounted) return;
+    context.go('/home/client');
+  }
 
   @override
   Widget build(BuildContext context) {

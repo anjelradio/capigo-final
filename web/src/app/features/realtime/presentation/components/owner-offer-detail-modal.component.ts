@@ -121,40 +121,34 @@ export class OwnerOfferDetailModalComponent implements AfterViewInit, OnChanges,
   @Output() accept = new EventEmitter<void>();
   @Output() reject = new EventEmitter<void>();
 
-  @ViewChild('mapContainer', { static: true })
-  private mapContainerRef!: ElementRef<HTMLDivElement>;
+  @ViewChild('mapContainer')
+  private mapContainerRef?: ElementRef<HTMLDivElement>;
 
   private map: L.Map | null = null;
   private marker: L.Marker | null = null;
 
   ngAfterViewInit(): void {
-    this.map = L.map(this.mapContainerRef.nativeElement, {
-      zoomControl: true,
-      dragging: true,
-      scrollWheelZoom: true,
-      doubleClickZoom: true,
-      touchZoom: true,
-      keyboard: false,
-    }).setView([-17.7833, -63.1821], 13);
-
-    L.tileLayer('https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png', {
-      maxZoom: 19,
-      attribution: '&copy; OpenStreetMap contributors',
-    }).addTo(this.map);
-
+    this.ensureMapInitialized();
     this.refreshMap();
   }
 
   ngOnChanges(changes: SimpleChanges): void {
-    if (changes['detail'] || changes['open']) {
+    if (changes['open']) {
+      const isOpen = changes['open'].currentValue === true;
+      if (!isOpen) {
+        this.destroyMap();
+        return;
+      }
+    }
+
+    if (changes['detail'] || changes['open'] || changes['isLoading']) {
+      this.ensureMapInitialized();
       this.refreshMap();
     }
   }
 
   ngOnDestroy(): void {
-    this.map?.remove();
-    this.map = null;
-    this.marker = null;
+    this.destroyMap();
   }
 
   onOpenChange(open: boolean): void {
@@ -199,6 +193,52 @@ export class OwnerOfferDetailModalComponent implements AfterViewInit, OnChanges,
 
     this.map.setView(point, 14);
     this.scheduleInvalidate();
+  }
+
+  private ensureMapInitialized(): void {
+    if (!this.open || this.isLoading) {
+      return;
+    }
+
+    const container = this.mapContainerRef?.nativeElement;
+    if (!container) {
+      setTimeout(() => {
+        this.ensureMapInitialized();
+        this.refreshMap();
+      }, 0);
+      return;
+    }
+
+    if (this.map && this.map.getContainer() !== container) {
+      this.destroyMap();
+    }
+
+    if (this.map) {
+      this.scheduleInvalidate();
+      return;
+    }
+
+    this.map = L.map(container, {
+      zoomControl: true,
+      dragging: true,
+      scrollWheelZoom: true,
+      doubleClickZoom: true,
+      touchZoom: true,
+      keyboard: false,
+    }).setView([-17.7833, -63.1821], 13);
+
+    L.tileLayer('https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png', {
+      maxZoom: 19,
+      attribution: '&copy; OpenStreetMap contributors',
+    }).addTo(this.map);
+
+    this.scheduleInvalidate();
+  }
+
+  private destroyMap(): void {
+    this.map?.remove();
+    this.map = null;
+    this.marker = null;
   }
 
   private scheduleInvalidate(): void {

@@ -57,3 +57,58 @@ class ActiveIncidentDetailRead(SQLModel):
 
 class IncidentCreateResponse(SQLModel):
     incident: IncidentRead
+
+
+class IncidentFeedbackCreateRequest(SQLModel):
+    rating: int
+    comment: str | None = None
+
+
+class IncidentFeedbackRead(SQLModel):
+    id: UUID
+    incident_id: UUID
+    rating: int
+    comment: str | None = None
+    created_date: datetime
+
+
+class PendingIncidentFeedbackRead(SQLModel):
+    incident_id: UUID
+    description: str | None
+    problem_name: str | None
+    completed_at: datetime | None
+
+
+class PendingIncidentFeedbackListResponse(SQLModel):
+    reminders: list[PendingIncidentFeedbackRead]
+
+
+class ClientServiceListItemRead(SQLModel):
+    incident_id: UUID
+    description: str | None
+    status: str
+    problem_name: str | None
+    vehicle_plate: str | None
+    created_date: datetime
+    updated_date: datetime
+
+
+class ClientServiceListResponse(SQLModel):
+    services: list[ClientServiceListItemRead]
+
+
+class ClientServiceDetailRead(SQLModel):
+    incident_id: UUID
+    status: str
+    description: str | None
+    problem_name: str | None
+    delivery_price: Decimal | None
+    distance_km: Decimal | None
+    address: str | None
+    created_date: datetime
+    updated_date: datetime
+    vehicle: VehicleRead
+    repair_shop_name: str | None = None
+    mechanic_name: str | None = None
+    report_description: str | None = None
+    labor_price: Decimal | None = None

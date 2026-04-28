@@ -7,8 +7,13 @@ from app.dependencies.auth import CurrentUser, DBSession
 from app.modules.ai.services import IncidentClassificationService
 from app.modules.incidents.schemas import (
     ActiveIncidentDetailRead,
+    ClientServiceDetailRead,
+    ClientServiceListResponse,
     IncidentCreateResponse,
+    IncidentFeedbackCreateRequest,
+    IncidentFeedbackRead,
     IncidentRead,
+    PendingIncidentFeedbackListResponse,
 )
 from app.modules.incidents.services import IncidentService
 
@@ -66,6 +71,36 @@ def list_my_incidents(db: DBSession, user: CurrentUser):
 
 
 @router.get(
+    "/me/services/completed",
+    response_model=ClientServiceListResponse,
+    status_code=status.HTTP_200_OK,
+)
+def list_my_completed_services(db: DBSession, user: CurrentUser):
+    return IncidentService(db).list_completed_services(user.id)
+
+
+@router.get(
+    "/me/services/history",
+    response_model=ClientServiceListResponse,
+    status_code=status.HTTP_200_OK,
+)
+def list_my_service_history(db: DBSession, user: CurrentUser):
+    return IncidentService(db).list_service_history(user.id)
+
+
+@router.get(
+    "/me/services/{incident_id}/detail",
+    response_model=ClientServiceDetailRead,
+    status_code=status.HTTP_200_OK,
+)
+def get_my_service_detail(db: DBSession, user: CurrentUser, incident_id: UUID):
+    return IncidentService(db).get_client_service_detail(
+        user_id=user.id,
+        incident_id=incident_id,
+    )
+
+
+@router.get(
     "/me/active",
     response_model=ActiveIncidentDetailRead | None,
     status_code=status.HTTP_200_OK,
@@ -74,9 +109,37 @@ def get_active_incident_detail(db: DBSession, user: CurrentUser):
     return IncidentService(db).get_active_incident_detail(user.id)
 
 
+@router.get(
+    "/me/feedback/pending",
+    response_model=PendingIncidentFeedbackListResponse,
+    status_code=status.HTTP_200_OK,
+)
+def list_my_pending_feedback_reminders(db: DBSession, user: CurrentUser):
+    return IncidentService(db).list_pending_feedback_reminders(user.id)
+
+
 @router.get("/{incident_id}", response_model=IncidentRead, status_code=status.HTTP_200_OK)
 def get_incident_by_id(db: DBSession, incident_id: UUID, user: CurrentUser):
     return IncidentService(db).get_incident_by_id(user.id, incident_id)
+
+
+@router.post(
+    "/{incident_id}/feedback",
+    response_model=IncidentFeedbackRead,
+    status_code=status.HTTP_201_CREATED,
+)
+def submit_incident_feedback(
+    db: DBSession,
+    incident_id: UUID,
+    user: CurrentUser,
+    payload: IncidentFeedbackCreateRequest,
+):
+    return IncidentService(db).submit_incident_feedback(
+        user_id=user.id,
+        incident_id=incident_id,
+        rating=payload.rating,
+        comment=payload.comment,
+    )
 
 
 @router.post(

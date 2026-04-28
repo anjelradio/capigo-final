@@ -18,6 +18,11 @@ class MechanicAssignmentRepository {
     return MechanicAssignmentMapper.assignmentFromJson(json ?? {});
   }
 
+  Future<MechanicAssignment> getIncidentDetail(String incidentId) async {
+    final json = await _mechanicApi.getIncidentDetail(incidentId);
+    return MechanicAssignmentMapper.assignmentFromJson(json ?? {});
+  }
+
   Future<MechanicAssignmentActionResult> updateAssignmentStatus({
     required String assignmentId,
     required String status,
@@ -25,6 +30,19 @@ class MechanicAssignmentRepository {
     final json = await _mechanicApi.updateAssignmentStatus(
       assignmentId: assignmentId,
       status: status,
+    );
+    return MechanicAssignmentMapper.actionResultFromJson(json);
+  }
+
+  Future<MechanicAssignmentActionResult> completeAssignment({
+    required String assignmentId,
+    required String description,
+    required double laborPrice,
+  }) async {
+    final json = await _mechanicApi.completeAssignment(
+      assignmentId: assignmentId,
+      description: description,
+      laborPrice: laborPrice,
     );
     return MechanicAssignmentMapper.actionResultFromJson(json);
   }
@@ -47,5 +65,15 @@ class MechanicAssignmentRepository {
   Future<MechanicTodayStats> getTodayStats() async {
     final json = await _mechanicApi.getTodayStats();
     return MechanicAssignmentMapper.todayStatsFromJson(json);
+  }
+
+  Future<List<MechanicServiceItem>> getCompletedServices() async {
+    final json = await _mechanicApi.getCompletedServices();
+    return MechanicAssignmentMapper.serviceItemsFromJson(json);
+  }
+
+  Future<List<MechanicServiceItem>> getServicesHistory() async {
+    final json = await _mechanicApi.getServicesHistory();
+    return MechanicAssignmentMapper.serviceItemsFromJson(json);
   }
 }

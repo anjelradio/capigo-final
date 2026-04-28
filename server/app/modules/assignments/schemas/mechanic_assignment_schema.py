@@ -25,6 +25,8 @@ class MechanicAssignmentIncidentRead(SQLModel):
     problem_name: str | None = None
     distance_km: float | None = None
     delivery_price: float | None = None
+    client_email: str | None = None
+    client_name: str | None = None
     evidence_urls: list[str]
     vehicle: MechanicAssignmentVehicleRead | None = None
 
@@ -63,6 +65,27 @@ class MechanicAssignmentActionResponse(SQLModel):
     detail: str
 
 
+class MechanicAssignmentCompleteRequest(SQLModel):
+    description: str
+    labor_price: float
+
+
 class MechanicTodayStatsRead(SQLModel):
     completed_today: int
     cancelled_today: int
+
+
+class MechanicServiceListItemRead(SQLModel):
+    assignment_id: UUID
+    incident_id: UUID
+    assignment_status: str
+    incident_status: str
+    incident_description: str | None = None
+    problem_name: str | None = None
+    vehicle_plate: str | None = None
+    created_date: datetime
+    updated_date: datetime
+
+
+class MechanicServiceListResponse(SQLModel):
+    services: list[MechanicServiceListItemRead]

@@ -21,6 +21,7 @@ class _ActiveServiceScreenState extends ConsumerState<ActiveServiceScreen> {
   String? _connectedIncidentId;
   final DraggableScrollableController _sheetController =
       DraggableScrollableController();
+  bool _didHandleCompletedStatus = false;
 
   @override
   void initState() {
@@ -76,6 +77,22 @@ class _ActiveServiceScreenState extends ConsumerState<ActiveServiceScreen> {
       0.62,
       0.78,
     );
+
+    ref.listen(incidentRealtimeProvider, (previous, next) {
+      final nextStatus = next.currentStatus.trim().toLowerCase();
+      if (_didHandleCompletedStatus || nextStatus != 'completed') return;
+
+      _didHandleCompletedStatus = true;
+      final incidentId = next.incidentId.trim().isNotEmpty
+          ? next.incidentId
+          : (_connectedIncidentId ?? detail?.incident.id ?? '');
+
+      if (incidentId.isNotEmpty) {
+        context.go('/home/client?reviewIncidentId=$incidentId');
+        return;
+      }
+      context.go('/home/client');
+    });
 
     return Scaffold(
       backgroundColor: AppColors.appBgBase,

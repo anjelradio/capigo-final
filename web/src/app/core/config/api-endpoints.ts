@@ -39,6 +39,7 @@ export const API_ENDPOINTS = {
     OWNER_OFFER_HISTORY: '/assignments/me/offers/history',
     OWNER_ASSIGNMENTS: '/assignments/me/assignments',
     OWNER_OFFER_DETAIL: '/assignments',
+    OWNER_SERVICE_REPORT_PDF_SUFFIX: 'service-report/pdf',
     OWNER_ACCEPT_SUFFIX: 'accept',
     OWNER_REJECT_SUFFIX: 'reject',
   },

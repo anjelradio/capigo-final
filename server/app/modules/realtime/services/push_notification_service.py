@@ -163,6 +163,8 @@ class PushNotificationService:
     ) -> dict:
         title = "Actualizacion de servicio"
         body = "El estado de tu incidente fue actualizado."
+        push_type = "client.incident.status.changed"
+        route = "/incidents/active-service"
 
         if status == "on_the_way":
             title = "Tu mecanico va en camino"
@@ -171,19 +173,24 @@ class PushNotificationService:
             title = "Tu mecanico ya llego"
             body = "El mecanico ya esta en el punto del incidente."
         elif status == "completed":
-            title = "Servicio completado"
-            body = "Tu incidente se marco como completado."
+            title = "Servicio finalizado"
+            body = "Tu servicio finalizo. Cuentanos como fue tu experiencia."
+            push_type = "client.incident.review.request"
+            route = f"/home/client?reviewIncidentId={incident_id}"
+        elif status == "cancelled":
+            title = "Servicio cancelado"
+            body = "El servicio fue cancelado por el mecanico."
 
         return self.notify_user(
             user_id=client_user_id,
             title=title,
             body=body,
             data={
-                "type": "client.incident.status.changed",
+                "type": push_type,
                 "incident_id": str(incident_id),
                 "assignment_id": str(assignment_id),
                 "status": status,
-                "route": "/incidents/active-service",
+                "route": route,
             },
         )
 

@@ -222,7 +222,7 @@ class _MechanicActiveServiceScreenState
                         onMarkArrived: () =>
                             assignmentNotifier.updateStatus('arrived'),
                         onMarkCompleted: () =>
-                            assignmentNotifier.updateStatus('completed'),
+                            _openCompleteServiceSheet(assignmentNotifier),
                         onCancel: () async {
                           final shouldCancel = await _confirmCancelService();
                           if (!shouldCancel) return;
@@ -307,6 +307,30 @@ class _MechanicActiveServiceScreenState
     );
 
     return result ?? false;
+  }
+
+  Future<void> _openCompleteServiceSheet(
+    MechanicActiveAssignmentNotifier assignmentNotifier,
+  ) async {
+    final result = await showModalBottomSheet<bool>(
+      context: context,
+      isScrollControlled: true,
+      backgroundColor: Colors.transparent,
+      builder: (sheetContext) {
+        return MechanicCompleteServiceSheet(
+          onSubmitReport: ({required description, required laborPrice}) async {
+            return assignmentNotifier.completeCurrentAssignment(
+              description: description,
+              laborPrice: laborPrice,
+            );
+          },
+        );
+      },
+    );
+
+    if ((result ?? false) && mounted) {
+      await assignmentNotifier.loadAssignmentDetail();
+    }
   }
 }
 

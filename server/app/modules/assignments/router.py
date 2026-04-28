@@ -1,6 +1,6 @@
 from uuid import UUID
 
-from fastapi import APIRouter, status
+from fastapi import APIRouter, Response, status
 
 from app.dependencies.auth import CurrentUser, DBSession
 from app.modules.assignments.schemas import (
@@ -19,6 +19,8 @@ from app.modules.assignments.schemas import (
     MechanicAssignmentStatusUpdateRequest,
     MechanicAssignmentLocationUpdateRequest,
     MechanicAssignmentActionResponse,
+    MechanicAssignmentCompleteRequest,
+    MechanicServiceListResponse,
     MechanicTodayStatsRead,
 )
 from app.modules.assignments.services import (
@@ -135,6 +137,24 @@ def get_my_offer_detail(db: DBSession, user: CurrentUser, assignment_id: UUID):
     )
 
 
+@router.get(
+    "/{assignment_id}/service-report/pdf",
+    status_code=status.HTTP_200_OK,
+)
+def download_my_service_report_pdf(db: DBSession, user: CurrentUser, assignment_id: UUID):
+    pdf_bytes, filename = OwnerOfferService(db).download_my_assignment_report_pdf(
+        user_id=user.id,
+        assignment_id=assignment_id,
+    )
+    return Response(
+        content=pdf_bytes,
+        media_type="application/pdf",
+        headers={
+            "Content-Disposition": f'attachment; filename="{filename}"',
+        },
+    )
+
+
 @router.post(
     "/{assignment_id}/accept",
     response_model=OwnerOfferActionResponse,
@@ -195,6 +215,36 @@ def get_my_today_stats(db: DBSession, user: CurrentUser):
     return MechanicAssignmentService(db).get_my_today_stats(user_id=user.id)
 
 
+@router.get(
+    "/me/mechanic/services/completed",
+    response_model=MechanicServiceListResponse,
+    status_code=status.HTTP_200_OK,
+)
+def list_my_completed_services(db: DBSession, user: CurrentUser):
+    return MechanicAssignmentService(db).list_my_completed_services(user_id=user.id)
+
+
+@router.get(
+    "/me/mechanic/services/history",
+    response_model=MechanicServiceListResponse,
+    status_code=status.HTTP_200_OK,
+)
+def list_my_service_history(db: DBSession, user: CurrentUser):
+    return MechanicAssignmentService(db).list_my_service_history(user_id=user.id)
+
+
+@router.get(
+    "/me/mechanic/incidents/{incident_id}/detail",
+    response_model=MechanicAssignmentRead,
+    status_code=status.HTTP_200_OK,
+)
+def get_my_incident_detail(db: DBSession, user: CurrentUser, incident_id: UUID):
+    return MechanicAssignmentService(db).get_my_incident_detail(
+        user_id=user.id,
+        incident_id=incident_id,
+    )
+
+
 @router.post(
     "/me/mechanic/assignments/{assignment_id}/status",
     response_model=MechanicAssignmentActionResponse,
@@ -210,6 +260,25 @@ def update_my_assignment_status(
         user_id=user.id,
         assignment_id=assignment_id,
         target_status=payload.status,
+    )
+
+
+@router.post(
+    "/me/mechanic/assignments/{assignment_id}/complete",
+    response_model=MechanicAssignmentActionResponse,
+    status_code=status.HTTP_200_OK,
+)
+def complete_my_assignment(
+    db: DBSession,
+    user: CurrentUser,
+    assignment_id: UUID,
+    payload: MechanicAssignmentCompleteRequest,
+):
+    return MechanicAssignmentService(db).complete_my_assignment(
+        user_id=user.id,
+        assignment_id=assignment_id,
+        description=payload.description,
+        labor_price=payload.labor_price,
     )
 
 

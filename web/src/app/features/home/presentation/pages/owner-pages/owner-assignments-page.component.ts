@@ -57,6 +57,15 @@ import { HomeHeaderComponent } from '../../components/home-header/home-header.co
                     {{ statusLabel(assignment.status) }}
                   </span>
                   <button
+                    *ngIf="canDownloadReport(assignment.status)"
+                    type="button"
+                    class="inline-flex items-center justify-center rounded-full border border-[var(--app-card-soft-border)] bg-[var(--app-card-soft-bg)] px-4 py-2 text-sm font-semibold text-[var(--app-text-primary)] transition hover:brightness-105 disabled:opacity-60"
+                    [disabled]="downloadingAssignmentId() === assignment.assignmentId"
+                    (click)="downloadServiceReport(assignment)"
+                  >
+                    {{ downloadingAssignmentId() === assignment.assignmentId ? 'Descargando...' : 'Descargar reporte' }}
+                  </button>
+                  <button
                     type="button"
                     class="inline-flex items-center justify-center rounded-full bg-[var(--app-accent)] px-4 py-2 text-sm font-semibold text-[var(--app-accent-text)] transition hover:brightness-105"
                     (click)="handleAssignmentAction(assignment)"
@@ -104,6 +113,7 @@ export class OwnerAssignmentsPageComponent {
   readonly selectedAssignmentDetail = signal<OwnerOfferDetail | null>(null);
   readonly isDetailModalOpen = signal(false);
   readonly isDetailLoading = signal(false);
+  readonly downloadingAssignmentId = signal<string | null>(null);
 
   constructor() {
     void this.loadAssignments();
@@ -154,6 +164,10 @@ export class OwnerAssignmentsPageComponent {
     return status === 'accepted' ? 'Ver actividad' : 'Ver detalle';
   }
 
+  canDownloadReport(status: string): boolean {
+    return status === 'completed';
+  }
+
   async handleAssignmentAction(assignment: OwnerAssignmentItem): Promise<void> {
     if (assignment.status === 'accepted') {
       await this.router.navigate(['/app/owner/assignments', assignment.assignmentId, 'activity']);
@@ -178,6 +192,24 @@ export class OwnerAssignmentsPageComponent {
     }
 
     this.selectedAssignmentDetail.set(response.data);
+  }
+
+  async downloadServiceReport(assignment: OwnerAssignmentItem): Promise<void> {
+    this.downloadingAssignmentId.set(assignment.assignmentId);
+    const response = await this.offersRepository.downloadServiceReportPdf(assignment.assignmentId);
+    this.downloadingAssignmentId.set(null);
+
+    if (!response.ok) {
+      this.appToast.showErrorList(response.errors);
+      return;
+    }
+
+    const blobUrl = window.URL.createObjectURL(response.data);
+    const link = document.createElement('a');
+    link.href = blobUrl;
+    link.download = `reporte-servicio-${assignment.incidentId}.pdf`;
+    link.click();
+    window.URL.revokeObjectURL(blobUrl);
   }
 
   private async loadAssignments(): Promise<void> {

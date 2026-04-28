@@ -9,7 +9,11 @@ from app.modules.assignments.repositories import (
     WalletLookupRepository,
 )
 from app.modules.incidents.models import Incident, IncidentStatus
-from app.modules.incidents.repositories import EvidenceRepository, IncidentRepository
+from app.modules.incidents.repositories import (
+    EvidenceRepository,
+    IncidentRepository,
+    IncidentServiceReportRepository,
+)
 from app.modules.repair_shop.repositories import RepairShopRepository, ShopMechanicRepository
 from app.modules.user.models import User, UserRole
 from app.modules.user.repositories import UserRepository, VehicleRepository
@@ -26,6 +30,7 @@ class AssignmentBaseService:
         self.request_assignment = RequestAssignmentRepository(db)
         self.wallet_lookup = WalletLookupRepository(db)
         self.evidence = EvidenceRepository(db)
+        self.incident_service_report = IncidentServiceReportRepository(db)
         self.vehicle = VehicleRepository(db)
 
     def _get_user_or_404(self, user_id: UUID) -> User:

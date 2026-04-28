@@ -68,6 +68,10 @@ export class RealtimeOffersRepository {
     };
   }
 
+  async downloadServiceReportPdf(assignmentId: string): Promise<ApiResult<Blob>> {
+    return this.realtimeOffersApi.downloadServiceReportPdf(assignmentId);
+  }
+
   async acceptOffer(assignmentId: string, mechanicId: string): Promise<ApiResult<OwnerOfferActionResult>> {
     const response = await this.realtimeOffersApi.acceptOffer(assignmentId, mechanicId);
     if (!response.ok) {

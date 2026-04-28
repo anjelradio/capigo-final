@@ -78,4 +78,109 @@ class IncidentApi {
       throw CustomError('No fue posible cargar el servicio activo');
     }
   }
+
+  Future<Map<String, dynamic>?> submitIncidentFeedback({
+    required String incidentId,
+    required int rating,
+    String? comment,
+  }) async {
+    try {
+      final response = await dio.post(
+        '/incidents/$incidentId/feedback',
+        data: {
+          'rating': rating,
+          'comment': comment?.trim().isEmpty == true ? null : comment?.trim(),
+        },
+      );
+      final data = response.data;
+      if (data == null) return null;
+      if (data is Map<String, dynamic>) return data;
+      if (data is Map) return data.cast<String, dynamic>();
+      return null;
+    } on DioException catch (e) {
+      _throwParsedDioError(
+        e,
+        'No fue posible enviar la calificacion del servicio',
+      );
+    } on CustomError {
+      rethrow;
+    } catch (_) {
+      throw CustomError('No fue posible enviar la calificacion del servicio');
+    }
+  }
+
+  Future<Map<String, dynamic>?> getPendingFeedbackReminders() async {
+    try {
+      final response = await dio.get('/incidents/me/feedback/pending');
+      final data = response.data;
+      if (data == null) return null;
+      if (data is Map<String, dynamic>) return data;
+      if (data is Map) return data.cast<String, dynamic>();
+      return null;
+    } on DioException catch (e) {
+      _throwParsedDioError(
+        e,
+        'No fue posible cargar recordatorios de calificacion',
+      );
+    } on CustomError {
+      rethrow;
+    } catch (_) {
+      throw CustomError('No fue posible cargar recordatorios de calificacion');
+    }
+  }
+
+  Future<Map<String, dynamic>?> getCompletedServices() async {
+    try {
+      final response = await dio.get('/incidents/me/services/completed');
+      final data = response.data;
+      if (data == null) return null;
+      if (data is Map<String, dynamic>) return data;
+      if (data is Map) return data.cast<String, dynamic>();
+      return null;
+    } on DioException catch (e) {
+      _throwParsedDioError(e, 'No fue posible cargar servicios realizados');
+    } on CustomError {
+      rethrow;
+    } catch (_) {
+      throw CustomError('No fue posible cargar servicios realizados');
+    }
+  }
+
+  Future<Map<String, dynamic>?> getServicesHistory() async {
+    try {
+      final response = await dio.get('/incidents/me/services/history');
+      final data = response.data;
+      if (data == null) return null;
+      if (data is Map<String, dynamic>) return data;
+      if (data is Map) return data.cast<String, dynamic>();
+      return null;
+    } on DioException catch (e) {
+      _throwParsedDioError(e, 'No fue posible cargar historial de servicios');
+    } on CustomError {
+      rethrow;
+    } catch (_) {
+      throw CustomError('No fue posible cargar historial de servicios');
+    }
+  }
+
+  Future<Map<String, dynamic>?> getServiceDetail({
+    required String incidentId,
+  }) async {
+    try {
+      final response = await dio.get(
+        '/incidents/me/services/$incidentId/detail',
+      );
+      final data = response.data;
+      if (data == null) return null;
+      if (data is Map<String, dynamic>) return data;
+      if (data is Map) return data.cast<String, dynamic>();
+      return null;
+    } on DioException catch (e) {
+      _throwParsedDioError(e, 'No fue posible cargar el detalle del servicio');
+    } on CustomError {
+      rethrow;
+    } catch (_) {
+      throw CustomError('No fue posible cargar el detalle del servicio');
+    }
+  }
 }

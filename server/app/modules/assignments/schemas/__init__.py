@@ -23,6 +23,9 @@ from .owner_offer_schema import (
 from .mechanic_assignment_schema import (
     MechanicActiveAssignmentResponse,
     MechanicAssignmentActionResponse,
+    MechanicAssignmentCompleteRequest,
+    MechanicServiceListResponse,
+    MechanicServiceListItemRead,
     MechanicAssignmentLocationUpdateRequest,
     MechanicAssignmentRead,
     MechanicAssignmentStatusUpdateRequest,
@@ -51,5 +54,8 @@ __all__ = [
     "MechanicAssignmentStatusUpdateRequest",
     "MechanicAssignmentLocationUpdateRequest",
     "MechanicAssignmentActionResponse",
+    "MechanicAssignmentCompleteRequest",
+    "MechanicServiceListItemRead",
+    "MechanicServiceListResponse",
     "MechanicTodayStatsRead",
 ]

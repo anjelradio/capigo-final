@@ -129,6 +129,29 @@ export class RealtimeOffersApiService {
     }
   }
 
+  async downloadServiceReportPdf(assignmentId: string): Promise<ApiResult<Blob>> {
+    try {
+      const res = await fetch(
+        `${this.baseUrl}${API_ENDPOINTS.ASSIGNMENTS.OWNER_OFFER_DETAIL}/${assignmentId}/${API_ENDPOINTS.ASSIGNMENTS.OWNER_SERVICE_REPORT_PDF_SUFFIX}`,
+        {
+          headers: this.getHeaders(),
+        },
+      );
+
+      if (!res.ok) {
+        return serverErrorResult(res, 'Error al descargar el reporte del servicio.');
+      }
+
+      const blob = await res.blob();
+      return {
+        ok: true,
+        data: blob,
+      };
+    } catch {
+      return errorResult('Error de conexion. Intenta mas tarde.');
+    }
+  }
+
   async acceptOffer(
     assignmentId: string,
     mechanicId: string,

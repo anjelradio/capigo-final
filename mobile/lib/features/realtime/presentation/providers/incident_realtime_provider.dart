@@ -7,6 +7,7 @@ import 'package:flutter_riverpod/legacy.dart';
 import 'package:mobile/features/auth/presentation/providers/providers.dart';
 import 'package:mobile/features/realtime/data/data.dart';
 import 'package:mobile/features/realtime/domain/domain.dart';
+import 'package:mobile/features/shared/shared.dart';
 
 final incidentRealtimeApiProvider = Provider<IncidentRealtimeApi>((ref) {
   final authState = ref.watch(authProvider);
@@ -200,9 +201,7 @@ class IncidentRealtimeNotifier extends StateNotifier<IncidentRealtimeState> {
   }
 
   DateTime? _asDateTime(dynamic value) {
-    if (value == null) return null;
-    final parsed = DateTime.tryParse('$value');
-    return parsed?.toLocal();
+    return BoliviaDateTimeFormatter.parseServerDateTime(value);
   }
 
   void _handleSocketDone() {

@@ -19,6 +19,7 @@ class IncidentClassificationService:
     MIN_CONFIDENCE = 0.70
     GEMINI_MODEL = "gemini-2.5-flash"
     MAX_EVIDENCE_IMAGES = 3
+    RETRYABLE_GEMINI_STATUS_CODES = {429, 500, 502, 503, 504}
 
     def __init__(self, db: Session):
         self.db = db
@@ -124,34 +125,12 @@ class IncidentClassificationService:
         if audio_part:
             parts.append(audio_part)
 
-        endpoint = (
-            "https://generativelanguage.googleapis.com/v1beta/models/"
-            f"{settings.GEMINI_MODEL or self.GEMINI_MODEL}:generateContent?key={settings.GEMINI_API_KEY}"
-        )
         payload = {
             "contents": [{"role": "user", "parts": parts}],
             "generationConfig": {"responseMimeType": "application/json"},
         }
 
-        try:
-            with httpx.Client(timeout=45.0) as client:
-                response = client.post(endpoint, json=payload)
-                response.raise_for_status()
-            body = response.json()
-        except httpx.HTTPStatusError as error:
-            detail = error.response.text.strip() or "Sin detalle"
-            raise HTTPException(
-                status_code=502,
-                detail=(
-                    "Gemini rechazo la solicitud de clasificacion. "
-                    f"status={error.response.status_code} detail={detail}"
-                ),
-            )
-        except Exception:
-            raise HTTPException(
-                status_code=502,
-                detail="No fue posible obtener respuesta de Gemini",
-            )
+        body = self._request_gemini_with_fallback(payload)
 
         text = self._extract_text_from_gemini_response(body)
         parsed = self._parse_gemini_json_result(text)
@@ -160,6 +139,88 @@ class IncidentClassificationService:
             "problem_id": str(parsed.get("problem_id", "")).strip(),
             "confidence": self._normalize_confidence(parsed.get("confidence")),
         }
+
+    def _request_gemini_with_fallback(self, payload: dict) -> dict:
+        models = self._resolve_gemini_models()
+        attempts: list[str] = []
+
+        for index, model in enumerate(models):
+            endpoint = (
+                "https://generativelanguage.googleapis.com/v1beta/models/"
+                f"{model}:generateContent?key={settings.GEMINI_API_KEY}"
+            )
+
+            try:
+                with httpx.Client(timeout=45.0) as client:
+                    response = client.post(endpoint, json=payload)
+                    response.raise_for_status()
+
+                logger.info("Gemini clasificacion exitosa con modelo=%s", model)
+                return response.json()
+            except httpx.HTTPStatusError as error:
+                status_code = error.response.status_code
+                detail = error.response.text.strip() or "Sin detalle"
+                attempts.append(f"model={model} status={status_code}")
+
+                is_retryable = status_code in self.RETRYABLE_GEMINI_STATUS_CODES
+                has_next_model = index < len(models) - 1
+                logger.warning(
+                    "Gemini rechazo clasificacion model=%s status=%s retryable=%s detail=%s",
+                    model,
+                    status_code,
+                    is_retryable,
+                    detail,
+                )
+
+                if is_retryable and has_next_model:
+                    continue
+
+                raise HTTPException(
+                    status_code=502,
+                    detail=(
+                        "Gemini rechazo la solicitud de clasificacion. "
+                        f"model={model} status={status_code} detail={detail}"
+                    ),
+                )
+            except Exception as error:
+                attempts.append(f"model={model} network_error={type(error).__name__}")
+                has_next_model = index < len(models) - 1
+                logger.warning(
+                    "No se pudo conectar con Gemini model=%s error=%s",
+                    model,
+                    error,
+                )
+
+                if has_next_model:
+                    continue
+
+                raise HTTPException(
+                    status_code=502,
+                    detail="No fue posible obtener respuesta de Gemini",
+                )
+
+        attempts_text = " | ".join(attempts) if attempts else "sin_intentos"
+        raise HTTPException(
+            status_code=502,
+            detail=(
+                "No fue posible clasificar el incidente con ningun modelo Gemini. "
+                f"attempts={attempts_text}"
+            ),
+        )
+
+    def _resolve_gemini_models(self) -> list[str]:
+        ordered_candidates = [
+            settings.GEMINI_MODEL or self.GEMINI_MODEL,
+            *settings.GEMINI_MODEL_FALLBACKS,
+        ]
+        models: list[str] = []
+        for model in ordered_candidates:
+            normalized = str(model or "").strip()
+            if not normalized or normalized in models:
+                continue
+            models.append(normalized)
+
+        return models or [self.GEMINI_MODEL]
 
     def _persist_classification_result(self, incident: Incident, payload: dict) -> dict:
         problem_id = payload["problem_id"]

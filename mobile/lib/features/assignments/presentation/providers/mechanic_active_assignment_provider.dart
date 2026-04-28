@@ -186,6 +186,50 @@ class MechanicActiveAssignmentNotifier
     }
   }
 
+  Future<bool> completeCurrentAssignment({
+    required String description,
+    required double laborPrice,
+  }) async {
+    final assignment = state.assignment;
+    if (assignment == null || state.isUpdatingStatus) return false;
+
+    state = state.copyWith(isUpdatingStatus: true, errorMessages: const []);
+
+    try {
+      final action = await _repository.completeAssignment(
+        assignmentId: assignment.assignmentId,
+        description: description,
+        laborPrice: laborPrice,
+      );
+      if (!mounted) return false;
+
+      state = state.copyWith(
+        isUpdatingStatus: false,
+        lastActionMessage: action.detail,
+        errorMessages: const [],
+      );
+
+      await refreshActiveAssignment();
+      return true;
+    } on CustomError catch (error) {
+      if (!mounted) return false;
+      state = state.copyWith(
+        isUpdatingStatus: false,
+        errorMessages: error.messages,
+      );
+      return false;
+    } catch (_) {
+      if (!mounted) return false;
+      state = state.copyWith(
+        isUpdatingStatus: false,
+        errorMessages: const [
+          'No fue posible completar el servicio con el reporte final.',
+        ],
+      );
+      return false;
+    }
+  }
+
   void clearLastActionMessage() {
     state = state.copyWith(lastActionMessage: '');
   }

@@ -40,6 +40,8 @@ class MechanicAssignmentIncident {
     this.problemName,
     this.distanceKm,
     this.deliveryPrice,
+    this.clientEmail,
+    this.clientName,
     this.evidenceUrls = const [],
     this.vehicle,
   });
@@ -54,8 +56,34 @@ class MechanicAssignmentIncident {
   final String? problemName;
   final double? distanceKm;
   final double? deliveryPrice;
+  final String? clientEmail;
+  final String? clientName;
   final List<String> evidenceUrls;
   final MechanicIncidentVehicle? vehicle;
+}
+
+class MechanicServiceItem {
+  MechanicServiceItem({
+    required this.assignmentId,
+    required this.incidentId,
+    required this.assignmentStatus,
+    required this.incidentStatus,
+    required this.createdDate,
+    required this.updatedDate,
+    this.incidentDescription,
+    this.problemName,
+    this.vehiclePlate,
+  });
+
+  final String assignmentId;
+  final String incidentId;
+  final String assignmentStatus;
+  final String incidentStatus;
+  final DateTime createdDate;
+  final DateTime updatedDate;
+  final String? incidentDescription;
+  final String? problemName;
+  final String? vehiclePlate;
 }
 
 class MechanicIncidentVehicle {

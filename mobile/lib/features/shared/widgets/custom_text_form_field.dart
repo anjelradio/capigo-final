@@ -23,6 +23,8 @@ class CustomTextFormField extends StatelessWidget {
   final Color? hintColor;
   final Color? errorColor;
   final double borderRadius;
+  final int maxLines;
+  final int? minLines;
 
   const CustomTextFormField({
     super.key,
@@ -47,6 +49,8 @@ class CustomTextFormField extends StatelessWidget {
     this.hintColor,
     this.errorColor,
     this.borderRadius = 25,
+    this.maxLines = 1,
+    this.minLines,
   });
 
   @override
@@ -90,6 +94,8 @@ class CustomTextFormField extends StatelessWidget {
         obscureText: obscureText,
         readOnly: readOnly,
         keyboardType: keyboardType,
+        maxLines: obscureText ? 1 : maxLines,
+        minLines: obscureText ? null : minLines,
         style: textTheme.bodyMedium?.copyWith(
           color: inputTextColor,
           fontSize: 15,

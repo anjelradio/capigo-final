@@ -14,7 +14,15 @@ final goRouterProvider = Provider((ref) {
     routes: [
       GoRoute(
         path: '/home/client',
-        builder: (context, state) => const ClientHomeScreen(),
+        builder: (context, state) {
+          final reviewIncidentId =
+              state.uri.queryParameters['reviewIncidentId']?.trim() ?? '';
+          return ClientHomeScreen(
+            reviewIncidentId: reviewIncidentId.isEmpty
+                ? null
+                : reviewIncidentId,
+          );
+        },
       ),
       GoRoute(
         path: '/home/mechanic',
@@ -29,8 +37,22 @@ final goRouterProvider = Provider((ref) {
         builder: (context, state) => const ActiveServiceScreen(),
       ),
       GoRoute(
+        path: '/incidents/services/:incidentId/detail',
+        builder: (context, state) {
+          final incidentId = state.pathParameters['incidentId'] ?? '';
+          return ClientServiceDetailScreen(incidentId: incidentId);
+        },
+      ),
+      GoRoute(
         path: '/incidents/mechanic',
         builder: (context, state) => const MechanicIncidentsScreen(),
+      ),
+      GoRoute(
+        path: '/incidents/mechanic/services/:incidentId/detail',
+        builder: (context, state) {
+          final incidentId = state.pathParameters['incidentId'] ?? '';
+          return MechanicServiceDetailScreen(incidentId: incidentId);
+        },
       ),
       GoRoute(
         path: '/incidents/mechanic/active-service',

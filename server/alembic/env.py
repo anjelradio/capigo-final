@@ -7,7 +7,14 @@ from sqlmodel import SQLModel
 
 from alembic import context
 from app.modules.assignments.models import RequestAssignment
-from app.modules.incidents.models import Evidence, Incident, Problem, ProblemServiceMap
+from app.modules.incidents.models import (
+    Evidence,
+    IncidentFeedback,
+    Incident,
+    IncidentServiceReport,
+    Problem,
+    ProblemServiceMap,
+)
 from app.modules.repair_shop.models import (
     RepairShop,
     Service,

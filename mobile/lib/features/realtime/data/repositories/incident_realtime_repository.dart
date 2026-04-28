@@ -2,6 +2,7 @@ import 'dart:io';
 
 import 'package:mobile/features/realtime/data/api/incident_realtime_api.dart';
 import 'package:mobile/features/realtime/domain/domain.dart';
+import 'package:mobile/features/shared/shared.dart';
 
 class IncidentRealtimeRepository {
   IncidentRealtimeRepository({required IncidentRealtimeApi realtimeApi})
@@ -88,7 +89,6 @@ class IncidentRealtimeRepository {
   }
 
   static DateTime? _asDateTime(dynamic value) {
-    if (value == null) return null;
-    return DateTime.tryParse('$value');
+    return BoliviaDateTimeFormatter.parseServerDateTime(value);
   }
 }

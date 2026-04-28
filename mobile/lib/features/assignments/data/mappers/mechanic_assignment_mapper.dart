@@ -1,4 +1,5 @@
 import 'package:mobile/features/assignments/domain/domain.dart';
+import 'package:mobile/features/shared/shared.dart';
 
 class MechanicAssignmentMapper {
   static MechanicAssignment? activeAssignmentFromJson(
@@ -40,6 +41,8 @@ class MechanicAssignmentMapper {
         problemName: incidentJson['problem_name'] as String?,
         distanceKm: _asDouble(incidentJson['distance_km']),
         deliveryPrice: _asDouble(incidentJson['delivery_price']),
+        clientEmail: incidentJson['client_email'] as String?,
+        clientName: incidentJson['client_name'] as String?,
         evidenceUrls: rawEvidenceUrls.map((item) => '$item').toList(),
         vehicle: vehicleJson == null
             ? null
@@ -84,10 +87,7 @@ class MechanicAssignmentMapper {
   }
 
   static DateTime? _asDateTime(Object? value) {
-    if (value == null) return null;
-    final raw = '$value'.trim();
-    if (raw.isEmpty) return null;
-    return DateTime.tryParse(raw);
+    return BoliviaDateTimeFormatter.parseServerDateTime(value);
   }
 
   static int? _asInt(Object? value) {
@@ -95,5 +95,41 @@ class MechanicAssignmentMapper {
     if (value is int) return value;
     if (value is num) return value.toInt();
     return int.tryParse('$value');
+  }
+
+  static List<MechanicServiceItem> serviceItemsFromJson(
+    Map<String, dynamic>? json,
+  ) {
+    final servicesJson = (json?['services'] as List?) ?? const [];
+    return servicesJson
+        .whereType<Map>()
+        .map((item) => item.cast<String, dynamic>())
+        .map(
+          (item) => MechanicServiceItem(
+            assignmentId: '${item['assignment_id'] ?? ''}',
+            incidentId: '${item['incident_id'] ?? ''}',
+            assignmentStatus: '${item['assignment_status'] ?? ''}',
+            incidentStatus: '${item['incident_status'] ?? ''}',
+            createdDate:
+                BoliviaDateTimeFormatter.parseServerDateTime(
+                  item['created_date'],
+                ) ??
+                DateTime.now().toUtc(),
+            updatedDate:
+                BoliviaDateTimeFormatter.parseServerDateTime(
+                  item['updated_date'],
+                ) ??
+                DateTime.now().toUtc(),
+            incidentDescription: item['incident_description'] as String?,
+            problemName: item['problem_name'] as String?,
+            vehiclePlate: item['vehicle_plate'] as String?,
+          ),
+        )
+        .where(
+          (item) =>
+              item.assignmentId.trim().isNotEmpty &&
+              item.incidentId.trim().isNotEmpty,
+        )
+        .toList();
   }
 }

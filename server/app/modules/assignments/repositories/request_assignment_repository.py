@@ -8,7 +8,7 @@ from sqlmodel import Session, select
 from app.modules.assignments.models import AssignmentStatus, RequestAssignment
 from app.modules.incidents.models import Evidence, Incident, Problem
 from app.modules.repair_shop.models import ShopMechanic
-from app.modules.user.models import User
+from app.modules.user.models import User, Vehicle
 
 
 class RequestAssignmentRepository:
@@ -110,6 +110,95 @@ class RequestAssignmentRepository:
             .order_by(RequestAssignment.created_date.desc())
         )
         return self.db.exec(query).first()
+
+    def get_latest_active_by_incident(self, incident_id: UUID) -> RequestAssignment | None:
+        query = (
+            select(RequestAssignment)
+            .where(
+                RequestAssignment.incident_id == incident_id,
+                RequestAssignment.state == True,
+                RequestAssignment.status == AssignmentStatus.ACCEPTED,
+            )
+            .order_by(RequestAssignment.created_date.desc())
+        )
+        return self.db.exec(query).first()
+
+    def get_latest_by_incident(self, incident_id: UUID) -> RequestAssignment | None:
+        query = (
+            select(RequestAssignment)
+            .where(
+                RequestAssignment.incident_id == incident_id,
+                RequestAssignment.state == True,
+            )
+            .order_by(RequestAssignment.created_date.desc())
+        )
+        return self.db.exec(query).first()
+
+    def get_latest_by_incident_and_mechanic(
+        self,
+        *,
+        incident_id: UUID,
+        mechanic_id: UUID,
+    ) -> RequestAssignment | None:
+        query = (
+            select(RequestAssignment)
+            .where(
+                RequestAssignment.incident_id == incident_id,
+                RequestAssignment.mechanic_id == mechanic_id,
+                RequestAssignment.state == True,
+            )
+            .order_by(RequestAssignment.created_date.desc())
+        )
+        return self.db.exec(query).first()
+
+    def list_services_by_mechanic(
+        self,
+        *,
+        mechanic_id: UUID,
+        only_completed: bool,
+    ) -> list[dict]:
+        query = (
+            select(
+                RequestAssignment,
+                Incident,
+                Problem,
+                Vehicle.plate,
+            )
+            .join(Incident, Incident.id == RequestAssignment.incident_id)
+            .join(Problem, Problem.id == Incident.problem_id, isouter=True)
+            .join(Vehicle, Vehicle.id == Incident.vehicle_id, isouter=True)
+            .where(
+                RequestAssignment.mechanic_id == mechanic_id,
+                RequestAssignment.state == True,
+                RequestAssignment.status.notin_(
+                    (
+                        AssignmentStatus.PENDING,
+                        AssignmentStatus.REJECTED,
+                        AssignmentStatus.EXPIRED,
+                    )
+                ),
+            )
+            .order_by(RequestAssignment.modified_date.desc(), RequestAssignment.created_date.desc())
+        )
+
+        if only_completed:
+            query = query.where(RequestAssignment.status == AssignmentStatus.COMPLETED)
+
+        rows = self.db.exec(query).all()
+        return [
+            {
+                "assignment_id": assignment.id,
+                "incident_id": incident.id,
+                "assignment_status": assignment.status.value,
+                "incident_status": incident.status.value,
+                "incident_description": incident.description,
+                "problem_name": problem.name if problem else None,
+                "vehicle_plate": vehicle_plate,
+                "created_date": assignment.created_date,
+                "updated_date": assignment.modified_date,
+            }
+            for assignment, incident, problem, vehicle_plate in rows
+        ]
 
     def exists_by_incident_and_shop(self, *, incident_id: UUID, shop_id: UUID) -> bool:
         query = select(RequestAssignment.id).where(
@@ -312,6 +401,106 @@ class RequestAssignmentRepository:
             "problem_id": row.problem_id,
             "problem_name": row.problem_name,
             "evidence_urls": evidence_urls,
+        }
+
+    def get_service_report_payload(self, assignment_id: UUID) -> dict | None:
+        query = text(
+            """
+            SELECT
+                ra.id AS assignment_id,
+                ra.status AS assignment_status,
+                ra.distance_km AS distance_km,
+                ra.delivery_price AS delivery_price,
+                ra.created_date AS assignment_created_at,
+                ra.responded_at AS assignment_responded_at,
+                i.id AS incident_id,
+                i.status AS incident_status,
+                i.description AS incident_description,
+                i.address AS incident_address,
+                i.latitude AS incident_latitude,
+                i.longitude AS incident_longitude,
+                i.created_date AS incident_created_at,
+                p.id AS problem_id,
+                p.name AS problem_name,
+                rs.id AS shop_id,
+                rs.name AS shop_name,
+                rs.text_address AS shop_address,
+                u_mech.first_name AS mechanic_first_name,
+                u_mech.last_name AS mechanic_last_name,
+                u_mech.phone AS mechanic_phone,
+                v.make AS vehicle_make,
+                v.model AS vehicle_model,
+                v.plate AS vehicle_plate,
+                v.color AS vehicle_color,
+                v.year AS vehicle_year,
+                vt.name AS vehicle_type,
+                rep.id AS report_id,
+                rep.description AS report_description,
+                rep.labor_price AS labor_price,
+                rep.created_date AS report_created_at,
+                fb.rating AS feedback_rating,
+                fb.comment AS feedback_comment,
+                fb.created_date AS feedback_created_at
+            FROM request_assignment ra
+            JOIN incident i ON i.id = ra.incident_id
+            JOIN repair_shop rs ON rs.id = ra.repair_shop_id
+            LEFT JOIN problem p ON p.id = i.problem_id
+            LEFT JOIN shop_mechanics sm ON sm.id = ra.mechanic_id
+            LEFT JOIN "user" u_mech ON u_mech.id = sm.user_id
+            LEFT JOIN vehicle v ON v.id = i.vehicle_id
+            LEFT JOIN vehicle_type vt ON vt.id = v.type_id
+            LEFT JOIN incident_service_report rep ON rep.incident_id = i.id AND rep.state = true
+            LEFT JOIN incident_feedback fb ON fb.incident_id = i.id AND fb.state = true
+            WHERE ra.id = :assignment_id AND ra.state = true
+            """
+        )
+
+        row = self.db.exec(query, params={"assignment_id": str(assignment_id)}).first()
+        if not row:
+            return None
+
+        return {
+            "assignment_id": row.assignment_id,
+            "assignment_status": row.assignment_status,
+            "distance_km": float(row.distance_km) if row.distance_km is not None else None,
+            "delivery_price": float(row.delivery_price) if row.delivery_price is not None else None,
+            "assignment_created_at": row.assignment_created_at,
+            "assignment_responded_at": row.assignment_responded_at,
+            "incident_id": row.incident_id,
+            "incident_status": row.incident_status,
+            "incident_description": row.incident_description,
+            "incident_address": row.incident_address,
+            "incident_latitude": float(row.incident_latitude)
+            if row.incident_latitude is not None
+            else None,
+            "incident_longitude": float(row.incident_longitude)
+            if row.incident_longitude is not None
+            else None,
+            "incident_created_at": row.incident_created_at,
+            "problem_id": row.problem_id,
+            "problem_name": row.problem_name,
+            "shop_id": row.shop_id,
+            "shop_name": row.shop_name,
+            "shop_address": row.shop_address,
+            "mechanic_name": (
+                f"{row.mechanic_first_name} {row.mechanic_last_name}".strip()
+                if row.mechanic_first_name and row.mechanic_last_name
+                else None
+            ),
+            "mechanic_phone": row.mechanic_phone,
+            "vehicle_make": row.vehicle_make,
+            "vehicle_model": row.vehicle_model,
+            "vehicle_plate": row.vehicle_plate,
+            "vehicle_color": row.vehicle_color,
+            "vehicle_year": row.vehicle_year,
+            "vehicle_type": row.vehicle_type,
+            "report_id": row.report_id,
+            "report_description": row.report_description,
+            "labor_price": float(row.labor_price) if row.labor_price is not None else None,
+            "report_created_at": row.report_created_at,
+            "feedback_rating": row.feedback_rating,
+            "feedback_comment": row.feedback_comment,
+            "feedback_created_at": row.feedback_created_at,
         }
 
     def get_today_status_totals_for_mechanic(

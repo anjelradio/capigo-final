@@ -21,6 +21,10 @@ class Settings(BaseSettings):
 
     GEMINI_API_KEY: str = Field(default="", env="GEMINI_API_KEY")
     GEMINI_MODEL: str = Field(default="gemini-2.5-flash", env="GEMINI_MODEL")
+    GEMINI_MODEL_FALLBACKS: list[str] = Field(
+        default_factory=lambda: ["gemini-2.5-flash-lite", "gemini-3-flash"],
+        env="GEMINI_MODEL_FALLBACKS",
+    )
     OPENAI_API_KEY: str = Field(default="", env="OPENAI_API_KEY")
     CLOUDINARY_CLOUD_NAME: str = Field(default="", env="CLOUDINARY_CLOUD_NAME")
     CLOUDINARY_API_KEY: str = Field(default="", env="CLOUDINARY_API_KEY")
@@ -51,6 +55,13 @@ class Settings(BaseSettings):
     def parse_cors_origins(cls, value):
         if isinstance(value, str):
             return [origin.strip() for origin in value.split(",") if origin.strip()]
+        return value
+
+    @field_validator("GEMINI_MODEL_FALLBACKS", mode="before")
+    @classmethod
+    def parse_gemini_model_fallbacks(cls, value):
+        if isinstance(value, str):
+            return [model.strip() for model in value.split(",") if model.strip()]
         return value
 
     class Config:

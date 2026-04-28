@@ -90,6 +90,35 @@ class MechanicAssignmentApi {
     }
   }
 
+  Future<Map<String, dynamic>?> completeAssignment({
+    required String assignmentId,
+    required String description,
+    required double laborPrice,
+  }) async {
+    try {
+      final response = await dio.post(
+        '/assignments/me/mechanic/assignments/$assignmentId/complete',
+        data: {'description': description, 'labor_price': laborPrice},
+      );
+      final data = response.data;
+      if (data == null) return null;
+      if (data is Map<String, dynamic>) return data;
+      if (data is Map) return data.cast<String, dynamic>();
+      return null;
+    } on DioException catch (e) {
+      _throwParsedDioError(
+        e,
+        'No fue posible completar el servicio con reporte final',
+      );
+    } on CustomError {
+      rethrow;
+    } catch (_) {
+      throw CustomError(
+        'No fue posible completar el servicio con reporte final',
+      );
+    }
+  }
+
   Future<Map<String, dynamic>?> updateAssignmentLocation({
     required String assignmentId,
     required double latitude,
@@ -134,6 +163,63 @@ class MechanicAssignmentApi {
       rethrow;
     } catch (_) {
       throw CustomError('No fue posible cargar metricas de hoy');
+    }
+  }
+
+  Future<Map<String, dynamic>?> getCompletedServices() async {
+    try {
+      final response = await dio.get(
+        '/assignments/me/mechanic/services/completed',
+      );
+      final data = response.data;
+      if (data == null) return null;
+      if (data is Map<String, dynamic>) return data;
+      if (data is Map) return data.cast<String, dynamic>();
+      return null;
+    } on DioException catch (e) {
+      _throwParsedDioError(e, 'No fue posible cargar servicios completados');
+    } on CustomError {
+      rethrow;
+    } catch (_) {
+      throw CustomError('No fue posible cargar servicios completados');
+    }
+  }
+
+  Future<Map<String, dynamic>?> getServicesHistory() async {
+    try {
+      final response = await dio.get(
+        '/assignments/me/mechanic/services/history',
+      );
+      final data = response.data;
+      if (data == null) return null;
+      if (data is Map<String, dynamic>) return data;
+      if (data is Map) return data.cast<String, dynamic>();
+      return null;
+    } on DioException catch (e) {
+      _throwParsedDioError(e, 'No fue posible cargar historial de servicios');
+    } on CustomError {
+      rethrow;
+    } catch (_) {
+      throw CustomError('No fue posible cargar historial de servicios');
+    }
+  }
+
+  Future<Map<String, dynamic>?> getIncidentDetail(String incidentId) async {
+    try {
+      final response = await dio.get(
+        '/assignments/me/mechanic/incidents/$incidentId/detail',
+      );
+      final data = response.data;
+      if (data == null) return null;
+      if (data is Map<String, dynamic>) return data;
+      if (data is Map) return data.cast<String, dynamic>();
+      return null;
+    } on DioException catch (e) {
+      _throwParsedDioError(e, 'No fue posible cargar el detalle del incidente');
+    } on CustomError {
+      rethrow;
+    } catch (_) {
+      throw CustomError('No fue posible cargar el detalle del incidente');
     }
   }
 }
