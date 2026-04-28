@@ -7,7 +7,9 @@ class CheckAuthStatusScreen extends ConsumerWidget {
   @override
   Widget build(BuildContext context, WidgetRef ref) {
     return Scaffold(
-      body: Center(child: CircularProgressIndicator(strokeWidth: 2)),
+      body: SizedBox.expand(
+        child: Image.asset('assets/splash/image.png', fit: BoxFit.cover),
+      ),
     );
   }
 }

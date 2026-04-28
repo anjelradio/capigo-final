@@ -57,3 +57,16 @@ Angular CLI does not come with an end-to-end testing framework by default. You c
 ## Additional Resources
 
 For more information on using the Angular CLI, including detailed command references, visit the [Angular CLI Overview and Command Reference](https://angular.dev/tools/cli) page.
+
+## Deploy on Vercel
+
+This app reads the API URL from `window.__env.API_URL` in `public/env.js`.
+
+On Vercel, configure:
+
+- Root Directory: `web`
+- Build Command: `pnpm build:vercel`
+- Output Directory: `dist/web/browser`
+- Environment Variable: `API_URL` (example: `https://api.example.com/api`)
+
+`build:vercel` generates `public/env.js` from `API_URL` before running the Angular build.
