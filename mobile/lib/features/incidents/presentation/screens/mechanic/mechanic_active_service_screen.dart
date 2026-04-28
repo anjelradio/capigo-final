@@ -6,6 +6,7 @@ import 'package:mobile/config/theme/app_theme.dart';
 import 'package:mobile/features/assignments/assignments.dart';
 import 'package:mobile/features/incidents/presentation/widgets/widgets.dart';
 import 'package:mobile/features/realtime/realtime.dart';
+import 'package:mobile/features/shared/shared.dart';
 import 'package:url_launcher/url_launcher.dart';
 
 class MechanicActiveServiceScreen extends ConsumerStatefulWidget {
@@ -165,7 +166,9 @@ class _MechanicActiveServiceScreenState
             alignment: Alignment.bottomCenter,
             child: Container(
               width: double.infinity,
-              constraints: const BoxConstraints(maxHeight: 420),
+              constraints: BoxConstraints(
+                maxHeight: MediaQuery.of(context).size.height * 0.60,
+              ),
               decoration: const BoxDecoration(
                 color: AppColors.appBgBase,
                 borderRadius: BorderRadius.only(
@@ -232,6 +235,13 @@ class _MechanicActiveServiceScreenState
                           latitude: assignment.incident.latitude,
                           longitude: assignment.incident.longitude,
                         ),
+                        onCallClient: () => _openClientPhoneCall(
+                          phone: assignment.incident.clientPhone,
+                        ),
+                        onWhatsAppClient: () => _openClientWhatsApp(
+                          phone: assignment.incident.clientPhone,
+                          clientName: assignment.incident.clientName,
+                        ),
                       ),
                   ],
                 ),
@@ -283,25 +293,87 @@ class _MechanicActiveServiceScreenState
     );
   }
 
+  Future<void> _openClientPhoneCall({required String? phone}) async {
+    final normalizedPhone = _normalizePhoneForCall(phone);
+    if (normalizedPhone == null) {
+      _showSnack('No hay telefono del cliente disponible.');
+      return;
+    }
+
+    final uri = Uri(scheme: 'tel', path: normalizedPhone);
+    final launched = await launchUrl(uri, mode: LaunchMode.externalApplication);
+    if (!launched && mounted) {
+      _showSnack('No se pudo abrir la app de telefono.');
+    }
+  }
+
+  Future<void> _openClientWhatsApp({
+    required String? phone,
+    required String? clientName,
+  }) async {
+    final normalizedPhone = _normalizePhoneForWhatsApp(phone);
+    if (normalizedPhone == null) {
+      _showSnack('No hay telefono valido para WhatsApp.');
+      return;
+    }
+
+    final name = (clientName ?? '').trim().isEmpty
+        ? 'cliente'
+        : clientName!.trim();
+    final message =
+        'Hola $name, te escribe tu mecanico de CapiGO para coordinar el servicio ${_connectedIncidentId ?? ''}.';
+    final uri = Uri.parse(
+      'https://wa.me/$normalizedPhone?text=${Uri.encodeComponent(message)}',
+    );
+
+    final launched = await launchUrl(uri, mode: LaunchMode.externalApplication);
+    if (!launched && mounted) {
+      _showSnack('No se pudo abrir WhatsApp.');
+    }
+  }
+
+  String? _normalizePhoneForCall(String? rawPhone) {
+    final digits = (rawPhone ?? '').replaceAll(RegExp(r'\D'), '');
+    if (digits.isEmpty) return null;
+    return digits;
+  }
+
+  String? _normalizePhoneForWhatsApp(String? rawPhone) {
+    final digits = (rawPhone ?? '').replaceAll(RegExp(r'\D'), '');
+    if (digits.isEmpty) return null;
+
+    if (digits.length == 8 &&
+        (digits.startsWith('6') || digits.startsWith('7'))) {
+      return '591$digits';
+    }
+
+    if (digits.startsWith('591')) return digits;
+    return digits.length >= 8 ? digits : null;
+  }
+
+  void _showSnack(String message) {
+    if (!mounted) return;
+    ScaffoldMessenger.of(context)
+      ..hideCurrentSnackBar()
+      ..showSnackBar(SnackBar(content: Text(message)));
+  }
+
   Future<bool> _confirmCancelService() async {
     final result = await showDialog<bool>(
       context: context,
       builder: (dialogContext) {
-        return AlertDialog(
-          title: const Text('Cancelar servicio'),
-          content: const Text(
-            'Estas seguro de que deseas cancelar este servicio?',
-          ),
-          actions: [
-            TextButton(
-              onPressed: () => Navigator.of(dialogContext).pop(false),
-              child: const Text('Volver'),
-            ),
-            FilledButton(
+        return AppDialogShell(
+          title: 'Cancelar servicio',
+          description: 'Estas seguro de que deseas cancelar este servicio?',
+          onCancel: () => Navigator.of(dialogContext).pop(false),
+          cancelText: 'Volver',
+          child: SizedBox(
+            width: double.infinity,
+            child: FilledButton(
               onPressed: () => Navigator.of(dialogContext).pop(true),
               child: const Text('Confirmar'),
             ),
-          ],
+          ),
         );
       },
     );

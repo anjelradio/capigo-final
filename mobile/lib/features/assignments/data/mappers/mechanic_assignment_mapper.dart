@@ -43,6 +43,7 @@ class MechanicAssignmentMapper {
         deliveryPrice: _asDouble(incidentJson['delivery_price']),
         clientEmail: incidentJson['client_email'] as String?,
         clientName: incidentJson['client_name'] as String?,
+        clientPhone: incidentJson['client_phone'] as String?,
         evidenceUrls: rawEvidenceUrls.map((item) => '$item').toList(),
         vehicle: vehicleJson == null
             ? null

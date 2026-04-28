@@ -25,8 +25,10 @@ class MechanicAssignmentIncidentRead(SQLModel):
     problem_name: str | None = None
     distance_km: float | None = None
     delivery_price: float | None = None
+    estimated_minutes: int | None = None
     client_email: str | None = None
     client_name: str | None = None
+    client_phone: str | None = None
     evidence_urls: list[str]
     vehicle: MechanicAssignmentVehicleRead | None = None
 

@@ -340,11 +340,17 @@ class RequestAssignmentRepository:
         return services
 
     def get_mechanic_full_name(self, mechanic_id: UUID | None) -> str | None:
+        contact = self.get_mechanic_contact(mechanic_id)
+        if not contact:
+            return None
+        return contact["full_name"]
+
+    def get_mechanic_contact(self, mechanic_id: UUID | None) -> dict | None:
         if mechanic_id is None:
             return None
 
         query = (
-            select(User.first_name, User.last_name)
+            select(User.first_name, User.last_name, User.phone)
             .join(ShopMechanic, ShopMechanic.user_id == User.id)
             .where(
                 ShopMechanic.id == mechanic_id,
@@ -356,7 +362,11 @@ class RequestAssignmentRepository:
         if not row:
             return None
 
-        return f"{row.first_name} {row.last_name}".strip()
+        full_name = f"{row.first_name} {row.last_name}".strip()
+        return {
+            "full_name": full_name if full_name else None,
+            "phone": row.phone,
+        }
 
     def get_offer_notification_payload(self, assignment_id: UUID) -> dict | None:
         query = text(
@@ -369,6 +379,7 @@ class RequestAssignmentRepository:
                 rs.longitude AS shop_longitude,
                 ra.distance_km AS distance_km,
                 ra.delivery_price AS delivery_price,
+                ra.estimated_minutes AS estimated_minutes,
                 ra.expires_at AS expires_at,
                 i.description AS incident_description,
                 i.latitude AS incident_latitude,
@@ -405,6 +416,7 @@ class RequestAssignmentRepository:
             "shop_longitude": float(row.shop_longitude) if row.shop_longitude is not None else None,
             "distance_km": float(row.distance_km) if row.distance_km is not None else None,
             "delivery_price": float(row.delivery_price) if row.delivery_price is not None else None,
+            "estimated_minutes": int(row.estimated_minutes) if row.estimated_minutes is not None else None,
             "expires_at": row.expires_at,
             "incident_description": row.incident_description,
             "incident_latitude": float(row.incident_latitude),
@@ -422,6 +434,7 @@ class RequestAssignmentRepository:
                 ra.status AS assignment_status,
                 ra.distance_km AS distance_km,
                 ra.delivery_price AS delivery_price,
+                ra.estimated_minutes AS estimated_minutes,
                 ra.created_date AS assignment_created_at,
                 ra.responded_at AS assignment_responded_at,
                 i.id AS incident_id,
@@ -475,6 +488,7 @@ class RequestAssignmentRepository:
             "assignment_status": row.assignment_status,
             "distance_km": float(row.distance_km) if row.distance_km is not None else None,
             "delivery_price": float(row.delivery_price) if row.delivery_price is not None else None,
+            "estimated_minutes": int(row.estimated_minutes) if row.estimated_minutes is not None else None,
             "assignment_created_at": row.assignment_created_at,
             "assignment_responded_at": row.assignment_responded_at,
             "incident_id": row.incident_id,

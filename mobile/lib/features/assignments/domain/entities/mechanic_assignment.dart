@@ -42,6 +42,7 @@ class MechanicAssignmentIncident {
     this.deliveryPrice,
     this.clientEmail,
     this.clientName,
+    this.clientPhone,
     this.evidenceUrls = const [],
     this.vehicle,
   });
@@ -58,6 +59,7 @@ class MechanicAssignmentIncident {
   final double? deliveryPrice;
   final String? clientEmail;
   final String? clientName;
+  final String? clientPhone;
   final List<String> evidenceUrls;
   final MechanicIncidentVehicle? vehicle;
 }

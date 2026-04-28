@@ -217,6 +217,9 @@ class IncidentService:
         assignment_payload = None
         if active_assignment:
             shop = self.repair_shop.get_by_id(active_assignment.repair_shop_id)
+            mechanic_contact = self.request_assignment.get_mechanic_contact(
+                active_assignment.mechanic_id
+            )
             assignment_payload = {
                 "request_assignment_id": active_assignment.id,
                 "status": active_assignment.status.value,
@@ -225,6 +228,9 @@ class IncidentService:
                 "repair_shop_latitude": shop.latitude if shop else None,
                 "repair_shop_longitude": shop.longitude if shop else None,
                 "mechanic_id": active_assignment.mechanic_id,
+                "mechanic_name": mechanic_contact["full_name"] if mechanic_contact else None,
+                "mechanic_phone": mechanic_contact["phone"] if mechanic_contact else None,
+                "estimated_minutes": active_assignment.estimated_minutes,
             }
 
         return {

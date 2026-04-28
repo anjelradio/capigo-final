@@ -1,8 +1,10 @@
 import logging
 from datetime import UTC, datetime
 from decimal import Decimal, ROUND_HALF_UP
+from math import ceil
 from uuid import UUID
 
+from app.core.config import settings
 from app.modules.assignments.models import AssignmentStatus, RequestAssignment
 from app.modules.incidents.models import IncidentStatus
 from app.modules.realtime.services import ShopOfferNotificationService
@@ -52,6 +54,7 @@ class OfferEvaluationService(AssignmentBaseService):
                 base_fee_bob=base_fee_bob,
                 price_per_km_bob=price_per_km_bob,
             )
+            estimated_minutes = self._calculate_estimated_minutes(distance_km=distance_km)
 
             open_assignment = self.request_assignment.get_open_by_incident_and_shop(
                 incident_id=incident.id,
@@ -96,6 +99,7 @@ class OfferEvaluationService(AssignmentBaseService):
                 offered_at=now_utc,
                 distance_km=distance_km,
                 delivery_price=delivery_price,
+                estimated_minutes=estimated_minutes,
             )
             self.request_assignment.create(assignment)
             self.db.flush()
@@ -108,6 +112,7 @@ class OfferEvaluationService(AssignmentBaseService):
                     "shop_name": shop_name,
                     "distance_km": float(distance_km),
                     "delivery_price": float(delivery_price),
+                    "estimated_minutes": estimated_minutes,
                 }
             )
 
@@ -150,10 +155,17 @@ class OfferEvaluationService(AssignmentBaseService):
         base_fee = Decimal(str(base_fee_bob))
         rate_per_km = Decimal(str(price_per_km_bob))
         price = base_fee + (distance_km * rate_per_km)
-        return price.quantize(Decimal("0.01"), rounding=ROUND_HALF_UP)
+        return price.quantize(Decimal("1"), rounding=ROUND_HALF_UP)
 
     def _to_km_decimal(self, value: float) -> Decimal:
         return Decimal(str(value)).quantize(Decimal("0.001"), rounding=ROUND_HALF_UP)
+
+    def _calculate_estimated_minutes(self, *, distance_km: Decimal) -> int:
+        speed_kmh = max(float(settings.ASSIGNMENT_ESTIMATED_SPEED_KMH), 0.1)
+        floor_minutes = max(int(settings.ASSIGNMENT_ESTIMATED_MIN_FLOOR_MINUTES), 0)
+
+        minutes = ceil((float(distance_km) / speed_kmh) * 60.0)
+        return max(minutes, floor_minutes)
 
     def _emit_incident_realtime_event(
         self,

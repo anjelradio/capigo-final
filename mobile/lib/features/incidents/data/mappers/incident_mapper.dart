@@ -56,6 +56,9 @@ class IncidentMapper {
                 assignmentJson['repair_shop_longitude'],
               ),
               mechanicId: assignmentJson['mechanic_id']?.toString(),
+              mechanicName: assignmentJson['mechanic_name'] as String?,
+              mechanicPhone: assignmentJson['mechanic_phone'] as String?,
+              estimatedMinutes: _asInt(assignmentJson['estimated_minutes']),
             ),
     );
   }
@@ -64,6 +67,13 @@ class IncidentMapper {
     if (value == null) return null;
     if (value is num) return value.toDouble();
     return double.tryParse('$value');
+  }
+
+  static int? _asInt(dynamic value) {
+    if (value == null) return null;
+    if (value is int) return value;
+    if (value is num) return value.toInt();
+    return int.tryParse('$value');
   }
 
   static List<PendingFeedbackReminder> pendingFeedbackRemindersFromJson(

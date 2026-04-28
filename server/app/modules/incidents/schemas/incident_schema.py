@@ -46,6 +46,9 @@ class ActiveIncidentAssignmentRead(SQLModel):
     repair_shop_latitude: float | None
     repair_shop_longitude: float | None
     mechanic_id: UUID | None
+    mechanic_name: str | None = None
+    mechanic_phone: str | None = None
+    estimated_minutes: int | None = None
 
 
 class ActiveIncidentDetailRead(SQLModel):

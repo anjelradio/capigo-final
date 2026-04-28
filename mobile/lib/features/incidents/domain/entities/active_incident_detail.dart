@@ -54,6 +54,9 @@ class ActiveIncidentAssignment {
     this.repairShopLatitude,
     this.repairShopLongitude,
     this.mechanicId,
+    this.mechanicName,
+    this.mechanicPhone,
+    this.estimatedMinutes,
   });
 
   final String requestAssignmentId;
@@ -63,4 +66,7 @@ class ActiveIncidentAssignment {
   final double? repairShopLatitude;
   final double? repairShopLongitude;
   final String? mechanicId;
+  final String? mechanicName;
+  final String? mechanicPhone;
+  final int? estimatedMinutes;
 }

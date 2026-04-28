@@ -117,6 +117,10 @@ class _MechanicServiceDetailScreenState
                       assignment.incident.clientName ?? 'No disponible',
                     ),
                     _line(
+                      'Telefono',
+                      assignment.incident.clientPhone ?? 'No disponible',
+                    ),
+                    _line(
                       'Correo',
                       assignment.incident.clientEmail ?? 'No disponible',
                     ),

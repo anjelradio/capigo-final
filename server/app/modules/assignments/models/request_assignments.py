@@ -44,3 +44,4 @@ class RequestAssignment(UUIDBaseModel, table=True):
         default=None,
         sa_column=Column(Numeric(10, 2), nullable=True),
     )
+    estimated_minutes: int | None = Field(default=None, ge=1)

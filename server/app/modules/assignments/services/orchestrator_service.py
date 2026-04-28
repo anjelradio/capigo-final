@@ -3,6 +3,7 @@ from uuid import UUID
 
 from sqlmodel import Session
 
+from app.core.config import settings
 from app.modules.incidents.repositories import IncidentRepository
 
 from .offer_evaluation_service import OfferEvaluationService
@@ -14,8 +15,8 @@ class AssignmentOrchestratorService:
     DEFAULT_RADIUS_STEPS_KM = [3, 6, 10, 15]
     DEFAULT_MIN_CANDIDATES = 5
     DEFAULT_LIMIT_PER_RADIUS = 20
-    DEFAULT_BASE_FEE_BOB = 5.0
-    DEFAULT_PRICE_PER_KM_BOB = 2.5
+    DEFAULT_BASE_FEE_BOB = settings.ASSIGNMENT_BASE_FEE_BOB
+    DEFAULT_PRICE_PER_KM_BOB = settings.ASSIGNMENT_PRICE_PER_KM_BOB
 
     def __init__(self, db: Session):
         self.db = db

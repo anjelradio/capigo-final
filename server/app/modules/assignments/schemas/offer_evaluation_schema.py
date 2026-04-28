@@ -53,6 +53,7 @@ class CandidateOfferCreatedRead(SQLModel):
     shop_name: str
     distance_km: float
     delivery_price: float
+    estimated_minutes: int | None = None
 
 
 class CandidateOfferDiscardedRead(SQLModel):

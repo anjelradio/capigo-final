@@ -3,6 +3,8 @@ import 'package:mobile/config/theme/app_theme.dart';
 import 'package:mobile/features/assignments/domain/domain.dart';
 import 'package:mobile/features/realtime/domain/domain.dart';
 
+import 'mechanic_service_info_cards.dart';
+
 class MechanicActiveServiceInfoCard extends StatelessWidget {
   const MechanicActiveServiceInfoCard({
     super.key,
@@ -14,6 +16,8 @@ class MechanicActiveServiceInfoCard extends StatelessWidget {
     required this.onMarkCompleted,
     required this.onCancel,
     required this.onOpenGoogleMaps,
+    required this.onCallClient,
+    required this.onWhatsAppClient,
   });
 
   final MechanicAssignment assignment;
@@ -24,11 +28,14 @@ class MechanicActiveServiceInfoCard extends StatelessWidget {
   final Future<void> Function() onMarkCompleted;
   final Future<void> Function() onCancel;
   final Future<void> Function() onOpenGoogleMaps;
+  final Future<void> Function() onCallClient;
+  final Future<void> Function() onWhatsAppClient;
 
   @override
   Widget build(BuildContext context) {
     final textTheme = Theme.of(context).textTheme;
     final currentStatus = _currentStatus();
+    final statusLabel = _statusLabel(currentStatus);
 
     return Container(
       decoration: BoxDecoration(
@@ -40,100 +47,88 @@ class MechanicActiveServiceInfoCard extends StatelessWidget {
       child: Column(
         crossAxisAlignment: CrossAxisAlignment.start,
         children: [
-          Text(
-            assignment.incident.problemName ?? 'Servicio en curso',
-            style: textTheme.bodyMedium?.copyWith(
-              color: AppColors.appTextOnDark,
-              fontWeight: FontWeight.w800,
-            ),
-          ),
-          const SizedBox(height: 8),
-          Text(
-            'Estado: ${_statusLabel(currentStatus)}',
-            style: textTheme.bodySmall?.copyWith(
-              color: AppColors.appTextOnDarkMuted,
-              fontWeight: FontWeight.w700,
-            ),
-          ),
-          const SizedBox(height: 6),
-          Text(
-            assignment.incident.description?.trim().isNotEmpty == true
-                ? assignment.incident.description!
-                : 'Sin descripcion adicional del incidente.',
-            style: textTheme.bodySmall?.copyWith(
-              color: AppColors.appTextOnDarkMuted,
-            ),
-          ),
-          const SizedBox(height: 8),
-          Text(
-            assignment.incident.address?.trim().isNotEmpty == true
-                ? assignment.incident.address!
-                : 'Ubicacion sin direccion textual.',
-            style: textTheme.bodySmall?.copyWith(
-              color: AppColors.appTextOnDark,
-              fontWeight: FontWeight.w600,
-            ),
-          ),
-          const SizedBox(height: 8),
-          Text(
-            _vehicleText(),
-            style: textTheme.bodySmall?.copyWith(
-              color: AppColors.appTextOnDarkMuted,
-              fontWeight: FontWeight.w600,
-            ),
-          ),
-          if (assignment.incident.evidenceUrls.isNotEmpty) ...[
-            const SizedBox(height: 6),
-            Text(
-              'Evidencias: ${assignment.incident.evidenceUrls.length} foto(s)',
-              style: textTheme.bodySmall?.copyWith(
-                color: AppColors.appAccent,
-                fontWeight: FontWeight.w700,
-              ),
-            ),
-          ],
-          const SizedBox(height: 12),
-          OutlinedButton.icon(
-            onPressed: onOpenGoogleMaps,
-            style: OutlinedButton.styleFrom(
-              foregroundColor: AppColors.appAccent,
-              side: const BorderSide(color: AppColors.appAccent),
-            ),
-            icon: const Icon(Icons.alt_route_rounded, size: 20),
-            label: const Text('Ver ruta en Google Maps'),
-          ),
-          const SizedBox(height: 12),
-          Wrap(
-            spacing: 8,
-            runSpacing: 8,
+          Row(
             children: [
-              if (currentStatus == 'assigned')
-                FilledButton(
-                  onPressed: isUpdatingStatus ? null : onMarkOnTheWay,
-                  child: const Text('En camino'),
-                ),
-              if (currentStatus == 'on_the_way')
-                FilledButton(
-                  onPressed: isUpdatingStatus ? null : onMarkArrived,
-                  child: const Text('Llegue'),
-                ),
-              if (currentStatus == 'arrived')
-                FilledButton(
-                  onPressed: isUpdatingStatus ? null : onMarkCompleted,
-                  child: const Text('Completar'),
-                ),
-              if (currentStatus == 'assigned' ||
-                  currentStatus == 'on_the_way' ||
-                  currentStatus == 'arrived')
-                OutlinedButton(
-                  onPressed: isUpdatingStatus ? null : onCancel,
-                  style: OutlinedButton.styleFrom(
-                    foregroundColor: const Color(0xFFE38A8A),
+              Expanded(
+                child: Text(
+                  assignment.incident.problemName ?? 'Servicio en curso',
+                  style: textTheme.titleSmall?.copyWith(
+                    color: AppColors.appTextOnDark,
+                    fontWeight: FontWeight.w800,
                   ),
-                  child: const Text('Cancelar'),
                 ),
+              ),
+              MechanicStatusChip(label: statusLabel),
             ],
           ),
+          const SizedBox(height: 12),
+          MechanicIncidentInfoCard(
+            assignment: assignment,
+            statusLabel: statusLabel,
+          ),
+          if (assignment.incident.evidenceUrls.isNotEmpty) ...[
+            const SizedBox(height: 10),
+            MechanicIncidentEvidenceSectionCard(
+              evidenceUrls: assignment.incident.evidenceUrls,
+            ),
+          ],
+          const SizedBox(height: 10),
+          MechanicClientInfoCard(
+            assignment: assignment,
+            onCallClient: onCallClient,
+            onWhatsAppClient: onWhatsAppClient,
+          ),
+          const SizedBox(height: 10),
+          MechanicVehicleInfoCard(assignment: assignment),
+          const SizedBox(height: 12),
+          SizedBox(
+            width: double.infinity,
+            child: OutlinedButton.icon(
+              onPressed: onOpenGoogleMaps,
+              style: OutlinedButton.styleFrom(
+                foregroundColor: AppColors.appAccent,
+                side: const BorderSide(color: AppColors.appAccent),
+              ),
+              icon: const Icon(Icons.alt_route_rounded, size: 20),
+              label: const Text('Ver ruta en Google Maps'),
+            ),
+          ),
+          const SizedBox(height: 12),
+          if (currentStatus == 'assigned' ||
+              currentStatus == 'on_the_way' ||
+              currentStatus == 'arrived')
+            Row(
+              children: [
+                Expanded(
+                  child: FilledButton(
+                    onPressed: isUpdatingStatus
+                        ? null
+                        : currentStatus == 'assigned'
+                        ? onMarkOnTheWay
+                        : currentStatus == 'on_the_way'
+                        ? onMarkArrived
+                        : onMarkCompleted,
+                    child: Text(
+                      currentStatus == 'assigned'
+                          ? 'En camino'
+                          : currentStatus == 'on_the_way'
+                          ? 'Llegue'
+                          : 'Completar',
+                    ),
+                  ),
+                ),
+                const SizedBox(width: 10),
+                Expanded(
+                  child: OutlinedButton(
+                    onPressed: isUpdatingStatus ? null : onCancel,
+                    style: OutlinedButton.styleFrom(
+                      foregroundColor: const Color(0xFFE38A8A),
+                    ),
+                    child: const Text('Cancelar'),
+                  ),
+                ),
+              ],
+            ),
         ],
       ),
     );
@@ -160,12 +155,5 @@ class MechanicActiveServiceInfoCard extends StatelessWidget {
       default:
         return status;
     }
-  }
-
-  String _vehicleText() {
-    final vehicle = assignment.incident.vehicle;
-    if (vehicle == null) return 'Vehiculo: sin informacion';
-
-    return 'Vehiculo: ${vehicle.make} ${vehicle.model} - ${vehicle.plate} - ${vehicle.color}';
   }
 }

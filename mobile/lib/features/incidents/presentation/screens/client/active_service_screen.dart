@@ -2,9 +2,11 @@ import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:go_router/go_router.dart';
 import 'package:mobile/config/theme/app_theme.dart';
+import 'package:mobile/features/auth/auth.dart';
 import 'package:mobile/features/incidents/presentation/providers/providers.dart';
 import 'package:mobile/features/incidents/presentation/widgets/widgets.dart';
 import 'package:mobile/features/realtime/realtime.dart';
+import 'package:mobile/features/shared/shared.dart';
 
 class ActiveServiceScreen extends ConsumerStatefulWidget {
   const ActiveServiceScreen({super.key});
@@ -42,6 +44,10 @@ class _ActiveServiceScreenState extends ConsumerState<ActiveServiceScreen> {
     final screenHeight = MediaQuery.sizeOf(context).height;
     final activeState = ref.watch(activeServiceProvider);
     final activeNotifier = ref.read(activeServiceProvider.notifier);
+    final user = ref.watch(authProvider).user;
+    final clientDisplayName = user == null
+        ? ''
+        : '${user.firstName} ${user.lastName}'.trim();
     final detail = activeState.detail;
     final realtimeState = ref.watch(incidentRealtimeProvider);
     final mechanicLatitude = realtimeState.snapshot?.mechanicLatitude;
@@ -212,7 +218,10 @@ class _ActiveServiceScreenState extends ConsumerState<ActiveServiceScreen> {
                                 isConnected: realtimeState.isConnected,
                               ),
                               const SizedBox(height: 12),
-                              ActiveServiceDetailsSection(detail: detail),
+                              ActiveServiceDetailsSection(
+                                detail: detail,
+                                clientDisplayName: clientDisplayName,
+                              ),
                               const SizedBox(height: 14),
                               SizedBox(
                                 width: double.infinity,
@@ -261,21 +270,19 @@ class _ActiveServiceScreenState extends ConsumerState<ActiveServiceScreen> {
     final shouldCancel = await showDialog<bool>(
       context: context,
       builder: (dialogContext) {
-        return AlertDialog(
-          title: const Text('Cancelar solicitud'),
-          content: const Text(
-            'Se cancelara el servicio para el taller y mecanico asignados. Esta accion no se puede deshacer.',
-          ),
-          actions: [
-            TextButton(
-              onPressed: () => Navigator.of(dialogContext).pop(false),
-              child: const Text('Volver'),
-            ),
-            FilledButton(
+        return AppDialogShell(
+          title: 'Cancelar solicitud',
+          description:
+              'Se cancelara el servicio para el taller y mecanico asignados. Esta accion no se puede deshacer.',
+          onCancel: () => Navigator.of(dialogContext).pop(false),
+          cancelText: 'Volver',
+          child: SizedBox(
+            width: double.infinity,
+            child: FilledButton(
               onPressed: () => Navigator.of(dialogContext).pop(true),
               child: const Text('Cancelar servicio'),
             ),
-          ],
+          ),
         );
       },
     );

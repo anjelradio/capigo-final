@@ -458,12 +458,14 @@ class MechanicAssignmentService(AssignmentBaseService):
                 "problem_name": payload.get("problem_name"),
                 "distance_km": payload.get("distance_km"),
                 "delivery_price": payload.get("delivery_price"),
+                "estimated_minutes": payload.get("estimated_minutes"),
                 "client_email": client_user.email if client_user else None,
                 "client_name": (
                     f"{client_user.first_name} {client_user.last_name}".strip()
                     if client_user
                     else None
                 ),
+                "client_phone": client_user.phone if client_user else None,
                 "evidence_urls": [evidence.url for evidence in evidences],
                 "vehicle": vehicle_data,
             },

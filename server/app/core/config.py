@@ -33,6 +33,19 @@ class Settings(BaseSettings):
 
     ASSIGNMENT_OFFER_TIMEOUT_SEC: int = Field(default=45, env="ASSIGNMENT_OFFER_TIMEOUT_SEC")
     ASSIGNMENT_QUEUE_SWEEP_SEC: int = Field(default=5, env="ASSIGNMENT_QUEUE_SWEEP_SEC")
+    ASSIGNMENT_BASE_FEE_BOB: float = Field(default=5.0, env="ASSIGNMENT_BASE_FEE_BOB")
+    ASSIGNMENT_PRICE_PER_KM_BOB: float = Field(
+        default=2.5,
+        env="ASSIGNMENT_PRICE_PER_KM_BOB",
+    )
+    ASSIGNMENT_ESTIMATED_SPEED_KMH: float = Field(
+        default=28.0,
+        env="ASSIGNMENT_ESTIMATED_SPEED_KMH",
+    )
+    ASSIGNMENT_ESTIMATED_MIN_FLOOR_MINUTES: int = Field(
+        default=5,
+        env="ASSIGNMENT_ESTIMATED_MIN_FLOOR_MINUTES",
+    )
     SQL_ECHO: bool = Field(default=False, env="SQL_ECHO")
     CORS_ORIGINS: list[str] = Field(
         default_factory=lambda: [
@@ -63,6 +76,27 @@ class Settings(BaseSettings):
     def parse_gemini_model_fallbacks(cls, value):
         if isinstance(value, str):
             return [model.strip() for model in value.split(",") if model.strip()]
+        return value
+
+    @field_validator("ASSIGNMENT_BASE_FEE_BOB", "ASSIGNMENT_PRICE_PER_KM_BOB")
+    @classmethod
+    def validate_assignment_price_params(cls, value: float) -> float:
+        if value < 0:
+            raise ValueError("Los parametros de cobro no pueden ser negativos")
+        return value
+
+    @field_validator("ASSIGNMENT_ESTIMATED_SPEED_KMH")
+    @classmethod
+    def validate_assignment_speed_kmh(cls, value: float) -> float:
+        if value <= 0:
+            raise ValueError("ASSIGNMENT_ESTIMATED_SPEED_KMH debe ser mayor a 0")
+        return value
+
+    @field_validator("ASSIGNMENT_ESTIMATED_MIN_FLOOR_MINUTES")
+    @classmethod
+    def validate_assignment_min_floor_minutes(cls, value: int) -> int:
+        if value < 0:
+            raise ValueError("ASSIGNMENT_ESTIMATED_MIN_FLOOR_MINUTES no puede ser negativo")
         return value
 
     class Config:
