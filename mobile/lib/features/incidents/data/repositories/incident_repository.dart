@@ -73,4 +73,33 @@ class IncidentRepository {
   Future<void> cancelIncident({required String incidentId}) {
     return _incidentApi.cancelIncident(incidentId: incidentId);
   }
+
+  Future<List<ClientIncidentOffer>> getIncidentOffers({
+    required String incidentId,
+  }) async {
+    final json = await _incidentApi.getIncidentOffers(incidentId: incidentId);
+    return IncidentMapper.clientIncidentOffersFromJson(json);
+  }
+
+  Future<ClientOfferActionResult> acceptIncidentOffer({
+    required String incidentId,
+    required String assignmentId,
+  }) async {
+    final json = await _incidentApi.acceptIncidentOffer(
+      incidentId: incidentId,
+      assignmentId: assignmentId,
+    );
+    return IncidentMapper.clientOfferActionResultFromJson(json);
+  }
+
+  Future<ClientOfferActionResult> rejectIncidentOffer({
+    required String incidentId,
+    required String assignmentId,
+  }) async {
+    final json = await _incidentApi.rejectIncidentOffer(
+      incidentId: incidentId,
+      assignmentId: assignmentId,
+    );
+    return IncidentMapper.clientOfferActionResultFromJson(json);
+  }
 }

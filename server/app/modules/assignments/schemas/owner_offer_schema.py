@@ -12,6 +12,7 @@ class OwnerPendingOfferRead(SQLModel):
     incident_description: str | None = None
     distance_km: float | None = None
     delivery_price: float | None = None
+    quoted_price: float | None = None
     notified_at: datetime | None = None
     expires_at: datetime | None = None
 
@@ -41,6 +42,8 @@ class OwnerOfferHistoryResponse(SQLModel):
 class OwnerOfferDetailRead(SQLModel):
     assignment_id: UUID
     incident_id: UUID
+    assignment_status: str
+    incident_status: str | None = None
     problem_id: UUID | None = None
     problem_name: str | None = None
     incident_description: str | None = None
@@ -50,6 +53,7 @@ class OwnerOfferDetailRead(SQLModel):
     repair_shop_longitude: float | None = None
     distance_km: float | None = None
     delivery_price: float | None = None
+    quoted_price: float | None = None
     mechanic_name: str | None = None
     notified_at: datetime | None = None
     expires_at: datetime | None = None
@@ -62,6 +66,19 @@ class OwnerOfferActionResponse(SQLModel):
     status: str
     detail: str
     next_notified_assignment_id: UUID | None = None
+
+
+class ClientIncomingOfferNotificationRead(SQLModel):
+    assignment_id: UUID
+    incident_id: UUID
+    repair_shop_id: UUID
+    repair_shop_name: str | None = None
+    quoted_price: float | None = None
+    delivery_price: float | None = None
+    estimated_minutes: int | None = None
+    distance_km: float | None = None
+    mechanic_id: UUID | None = None
+    description: str
 
 
 class OwnerAssignmentRead(SQLModel):
@@ -81,5 +98,6 @@ class OwnerAssignmentsResponse(SQLModel):
     assignments: list[OwnerAssignmentRead]
 
 
-class OwnerOfferAcceptRequest(SQLModel):
+class OwnerSubmitOfferRequest(SQLModel):
     mechanic_id: UUID
+    quoted_price: float = Field(gt=0)

@@ -28,6 +28,7 @@ class RequestAssignmentRepository:
             RequestAssignment.status.in_(
                 (
                     AssignmentStatus.PENDING,
+                    AssignmentStatus.OFFERED,
                     AssignmentStatus.ACCEPTED,
                 )
             ),
@@ -101,6 +102,41 @@ class RequestAssignmentRepository:
             RequestAssignment.state == True,
         )
         return self.db.exec(query).first()
+
+    def list_offered_by_incident(self, incident_id: UUID) -> list[RequestAssignment]:
+        query = (
+            select(RequestAssignment)
+            .where(
+                RequestAssignment.incident_id == incident_id,
+                RequestAssignment.state == True,
+                RequestAssignment.status == AssignmentStatus.OFFERED,
+            )
+            .order_by(RequestAssignment.responded_at.desc(), RequestAssignment.created_date.desc())
+        )
+        return list(self.db.exec(query).all())
+
+    def list_offer_candidates_except(
+        self,
+        *,
+        incident_id: UUID,
+        exclude_assignment_id: UUID,
+    ) -> list[RequestAssignment]:
+        query = (
+            select(RequestAssignment)
+            .where(
+                RequestAssignment.incident_id == incident_id,
+                RequestAssignment.id != exclude_assignment_id,
+                RequestAssignment.state == True,
+                RequestAssignment.status.in_(
+                    (
+                        AssignmentStatus.PENDING,
+                        AssignmentStatus.OFFERED,
+                    )
+                ),
+            )
+            .order_by(RequestAssignment.queue_rank.asc(), RequestAssignment.created_date.asc())
+        )
+        return list(self.db.exec(query).all())
 
     def get_by_id_and_mechanic(self, *, assignment_id: UUID, mechanic_id: UUID) -> RequestAssignment | None:
         query = select(RequestAssignment).where(
@@ -375,13 +411,16 @@ class RequestAssignmentRepository:
                 ra.id AS assignment_id,
                 ra.incident_id AS incident_id,
                 ra.repair_shop_id AS shop_id,
+                ra.status AS assignment_status,
                 rs.latitude AS shop_latitude,
                 rs.longitude AS shop_longitude,
                 ra.distance_km AS distance_km,
                 ra.delivery_price AS delivery_price,
+                ra.quoted_price AS quoted_price,
                 ra.estimated_minutes AS estimated_minutes,
                 ra.expires_at AS expires_at,
                 i.description AS incident_description,
+                i.status AS incident_status,
                 i.latitude AS incident_latitude,
                 i.longitude AS incident_longitude,
                 p.id AS problem_id,
@@ -412,13 +451,20 @@ class RequestAssignmentRepository:
             "assignment_id": row.assignment_id,
             "incident_id": row.incident_id,
             "shop_id": row.shop_id,
+            "assignment_status": str(row.assignment_status).split(".")[-1].lower()
+            if row.assignment_status is not None
+            else None,
             "shop_latitude": float(row.shop_latitude) if row.shop_latitude is not None else None,
             "shop_longitude": float(row.shop_longitude) if row.shop_longitude is not None else None,
             "distance_km": float(row.distance_km) if row.distance_km is not None else None,
             "delivery_price": float(row.delivery_price) if row.delivery_price is not None else None,
+            "quoted_price": float(row.quoted_price) if row.quoted_price is not None else None,
             "estimated_minutes": int(row.estimated_minutes) if row.estimated_minutes is not None else None,
             "expires_at": row.expires_at,
             "incident_description": row.incident_description,
+            "incident_status": str(row.incident_status).split(".")[-1].lower()
+            if row.incident_status is not None
+            else None,
             "incident_latitude": float(row.incident_latitude),
             "incident_longitude": float(row.incident_longitude),
             "problem_id": row.problem_id,

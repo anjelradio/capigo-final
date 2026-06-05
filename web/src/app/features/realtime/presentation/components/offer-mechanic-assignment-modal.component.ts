@@ -13,14 +13,32 @@ import { AppModalComponent } from '../../../shared/presentation/components/modal
       <section class="space-y-4 px-6 py-6">
         <header class="space-y-1">
           <p class="text-xs font-semibold uppercase tracking-wide text-[var(--auth-text-secondary)]">
-            Asignar mecanico
+            Enviar oferta
           </p>
           <h3 class="text-2xl font-semibold text-[var(--app-text-primary)]">
-            Selecciona quien atendera esta solicitud
+            Define cotizacion y mecanico propuesto
           </h3>
         </header>
 
-        <div class="max-h-72 space-y-2 overflow-y-auto pr-1">
+        <div>
+          <label class="mb-1 block text-xs font-semibold uppercase tracking-wide text-[var(--auth-text-secondary)]">
+            Precio ofertado (Bs)
+          </label>
+          <input
+            type="number"
+            min="0"
+            step="0.01"
+            [value]="quotedPrice"
+            (input)="onQuotedPriceChange($event)"
+            class="w-full rounded-xl border border-[var(--app-card-soft-border)] bg-[var(--app-card-soft-bg)] px-3 py-2 text-sm text-[var(--app-text-primary)] outline-none focus:border-[var(--app-accent)]"
+            placeholder="Ej. 120"
+          />
+        </div>
+
+        <div class="max-h-64 space-y-2 overflow-y-auto pr-1">
+          <p class="text-xs font-semibold uppercase tracking-wide text-[var(--auth-text-secondary)]">
+            Selecciona mecanico
+          </p>
           <label
             *ngFor="let mechanic of mechanics"
             class="flex cursor-pointer items-center justify-between rounded-xl border border-[var(--app-card-soft-border)] bg-[var(--app-card-soft-bg)] px-4 py-3"
@@ -62,10 +80,10 @@ import { AppModalComponent } from '../../../shared/presentation/components/modal
           <button
             type="button"
             class="inline-flex items-center justify-center rounded-full bg-[var(--app-accent)] px-4 py-2 text-sm font-semibold text-[var(--app-accent-text)] transition hover:brightness-105 disabled:cursor-not-allowed disabled:opacity-60"
-            [disabled]="isSubmitting || !selectedMechanicId"
+            [disabled]="isSubmitting || !selectedMechanicId || !quotedPrice"
             (click)="onAssign()"
           >
-            {{ isSubmitting ? 'Asignando...' : 'Asignar mecanico' }}
+            {{ isSubmitting ? 'Enviando...' : 'Enviar oferta' }}
           </button>
         </footer>
       </section>
@@ -76,10 +94,12 @@ export class OfferMechanicAssignmentModalComponent {
   @Input() open = false;
   @Input() mechanics: ShopMechanicData[] = [];
   @Input() selectedMechanicId: string | null = null;
+  @Input() quotedPrice = '';
   @Input() isSubmitting = false;
 
   @Output() openChange = new EventEmitter<boolean>();
   @Output() selectedMechanicIdChange = new EventEmitter<string>();
+  @Output() quotedPriceChange = new EventEmitter<string>();
   @Output() assign = new EventEmitter<void>();
 
   onOpenChange(open: boolean): void {
@@ -88,6 +108,11 @@ export class OfferMechanicAssignmentModalComponent {
 
   onSelect(mechanicId: string): void {
     this.selectedMechanicIdChange.emit(mechanicId);
+  }
+
+  onQuotedPriceChange(event: Event): void {
+    const target = event.target as HTMLInputElement | null;
+    this.quotedPriceChange.emit(target?.value ?? '');
   }
 
   onCancel(): void {

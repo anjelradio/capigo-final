@@ -6,11 +6,14 @@ export type OwnerPendingOffer = {
   incidentDescription: string | null;
   distanceKm: number | null;
   deliveryPrice: number | null;
+  quotedPrice: number | null;
   notifiedAt: string | null;
   expiresAt: string | null;
 };
 
 export type OwnerOfferDetail = OwnerPendingOffer & {
+  assignmentStatus: string;
+  incidentStatus: string | null;
   incidentLatitude: number;
   incidentLongitude: number;
   repairShopLatitude: number | null;
@@ -40,6 +43,7 @@ export type OwnerAssignmentItem = {
   incidentDescription: string | null;
   distanceKm: number | null;
   deliveryPrice: number | null;
+  quotedPrice: number | null;
   status: string;
   mechanicName: string | null;
   createdAt: string;

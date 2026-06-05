@@ -5,8 +5,6 @@ from uuid import UUID
 from fastapi import HTTPException
 
 from app.modules.assignments.models import AssignmentStatus
-from app.modules.incidents.models import IncidentStatus
-from app.modules.realtime.services import PushNotificationService, ShopOfferNotificationService
 from app.modules.user.models import UserRole
 
 from .base_service import AssignmentBaseService
@@ -35,6 +33,9 @@ class OwnerOfferService(AssignmentBaseService):
                     "incident_description": payload.get("incident_description"),
                     "distance_km": payload.get("distance_km"),
                     "delivery_price": payload.get("delivery_price"),
+                    "quoted_price": float(assignment.quoted_price)
+                    if assignment.quoted_price is not None
+                    else None,
                     "notified_at": assignment.notified_at,
                     "expires_at": assignment.expires_at,
                 }
@@ -48,6 +49,8 @@ class OwnerOfferService(AssignmentBaseService):
         if not assignment or assignment.repair_shop_id != shop_id:
             raise HTTPException(status_code=404, detail="Oferta no encontrada")
 
+        incident = self.incident.get_by_id(assignment.incident_id)
+
         payload = self.request_assignment.get_offer_notification_payload(assignment.id)
         if not payload:
             raise HTTPException(status_code=404, detail="Oferta no encontrada")
@@ -55,6 +58,8 @@ class OwnerOfferService(AssignmentBaseService):
         return {
             "assignment_id": assignment.id,
             "incident_id": assignment.incident_id,
+            "assignment_status": assignment.status.value,
+            "incident_status": incident.status.value if incident else None,
             "problem_id": payload.get("problem_id"),
             "problem_name": payload.get("problem_name"),
             "incident_description": payload.get("incident_description"),
@@ -64,6 +69,9 @@ class OwnerOfferService(AssignmentBaseService):
             "repair_shop_longitude": payload.get("shop_longitude"),
             "distance_km": payload.get("distance_km"),
             "delivery_price": payload.get("delivery_price"),
+            "quoted_price": float(assignment.quoted_price)
+            if assignment.quoted_price is not None
+            else None,
             "mechanic_name": self.request_assignment.get_mechanic_full_name(
                 assignment.mechanic_id
             ),
@@ -92,6 +100,9 @@ class OwnerOfferService(AssignmentBaseService):
                     "incident_description": payload.get("incident_description"),
                     "distance_km": payload.get("distance_km"),
                     "delivery_price": payload.get("delivery_price"),
+                    "quoted_price": float(assignment.quoted_price)
+                    if assignment.quoted_price is not None
+                    else None,
                     "status": self._resolve_history_status(assignment.status, assignment.expires_at),
                     "notified_at": assignment.notified_at,
                     "expires_at": assignment.expires_at,
@@ -120,6 +131,9 @@ class OwnerOfferService(AssignmentBaseService):
                     "incident_description": payload.get("incident_description"),
                     "distance_km": payload.get("distance_km"),
                     "delivery_price": payload.get("delivery_price"),
+                    "quoted_price": float(assignment.quoted_price)
+                    if assignment.quoted_price is not None
+                    else None,
                     "status": assignment.status.value,
                     "mechanic_name": self.request_assignment.get_mechanic_full_name(
                         assignment.mechanic_id
@@ -159,24 +173,18 @@ class OwnerOfferService(AssignmentBaseService):
         if not assignment or assignment.repair_shop_id != shop_id:
             raise HTTPException(status_code=404, detail="Oferta no encontrada")
 
-        self._ensure_offer_actionable(assignment.status, assignment.expires_at)
+        self._ensure_offer_submittable(assignment.status, assignment.expires_at)
 
         assignment.status = AssignmentStatus.REJECTED
         assignment.responded_at = datetime.now(UTC)
         self.db.add(assignment)
         self.db.commit()
 
-        notify_output = ShopOfferNotificationService(
-            self.db
-        ).notify_next_offer_in_incident_queue_sync(assignment.incident_id)
-        next_assignment_id = notify_output.get("assignment_id")
-
         self._emit_incident_realtime_event(
             incident_id=assignment.incident_id,
             event_type="assignment.offer.rejected",
             payload={
                 "assignment_id": assignment.id,
-                "next_notified_assignment_id": next_assignment_id,
                 "description": "El taller rechazo la oferta",
             },
             assignment_id=assignment.id,
@@ -188,128 +196,83 @@ class OwnerOfferService(AssignmentBaseService):
             "incident_id": assignment.incident_id,
             "status": AssignmentStatus.REJECTED.value,
             "detail": "Oferta rechazada",
-            "next_notified_assignment_id": next_assignment_id,
+            "next_notified_assignment_id": None,
         }
 
-    def accept_my_offer(self, *, user_id: UUID, assignment_id: UUID, mechanic_id: UUID) -> dict:
+    def submit_my_offer(
+        self,
+        *,
+        user_id: UUID,
+        assignment_id: UUID,
+        mechanic_id: UUID,
+        quoted_price: float,
+    ) -> dict:
         shop_id = self._resolve_owner_shop_id(user_id)
         assignment = self.request_assignment.get_by_id(assignment_id)
         if not assignment or assignment.repair_shop_id != shop_id:
             raise HTTPException(status_code=404, detail="Oferta no encontrada")
 
-        self._ensure_offer_actionable(assignment.status, assignment.expires_at)
+        self._ensure_offer_submittable(assignment.status, assignment.expires_at)
 
         mechanic_link = self.shop_mechanic.get_active_by_id_and_shop(mechanic_id, shop_id)
         if not mechanic_link:
             raise HTTPException(status_code=404, detail="Mecanico no encontrado en el taller")
-        if not mechanic_link.is_available:
-            raise HTTPException(status_code=409, detail="El mecanico seleccionado no esta disponible")
 
-        assignment.status = AssignmentStatus.ACCEPTED
+        if quoted_price <= 0:
+            raise HTTPException(status_code=400, detail="El precio ofertado debe ser mayor a 0")
+
+        assignment.status = AssignmentStatus.OFFERED
         assignment.mechanic_id = mechanic_link.id
+        assignment.quoted_price = quoted_price
         assignment.responded_at = datetime.now(UTC)
         self.db.add(assignment)
 
-        mechanic_link.is_available = False
-        self.db.add(mechanic_link)
-
-        incident = self.incident.get_by_id(assignment.incident_id)
-        if incident:
-            incident.status = IncidentStatus.ASSIGNED
-            incident.delivery_price = assignment.delivery_price
-            incident.distance_km = assignment.distance_km
-            self.db.add(incident)
-
-        remaining_pending = self.request_assignment.list_pending_by_incident_except_shop(
-            incident_id=assignment.incident_id,
-            exclude_shop_id=assignment.repair_shop_id,
-        )
-        for pending in remaining_pending:
-            pending.status = AssignmentStatus.CANCELLED
-            pending.responded_at = datetime.now(UTC)
-            self.db.add(pending)
-
         self.db.commit()
 
+        incident = self.incident.get_by_id(assignment.incident_id)
+        shop = self.repair_shop.get_by_id(assignment.repair_shop_id)
+        mechanic_name = self.request_assignment.get_mechanic_full_name(assignment.mechanic_id)
+
         self._emit_incident_realtime_event(
             incident_id=assignment.incident_id,
-            event_type="assignment.accepted",
+            event_type="assignment.offer.submitted",
             payload={
                 "assignment_id": assignment.id,
-                "mechanic_id": assignment.mechanic_id,
+                "incident_id": assignment.incident_id,
                 "repair_shop_id": assignment.repair_shop_id,
-                "status": IncidentStatus.ASSIGNED.value,
-                "description": "Solicitud aceptada por el taller",
-            },
-            status=IncidentStatus.ASSIGNED,
-            assignment_id=assignment.id,
-            repair_shop_id=assignment.repair_shop_id,
-            mechanic_id=assignment.mechanic_id,
-        )
-
-        self._emit_incident_realtime_event(
-            incident_id=assignment.incident_id,
-            event_type="incident.status.changed",
-            payload={
-                "status": IncidentStatus.ASSIGNED.value,
-                "assignment_id": assignment.id,
+                "repair_shop_name": shop.name if shop else None,
+                "quoted_price": float(assignment.quoted_price) if assignment.quoted_price is not None else None,
+                "delivery_price": float(assignment.delivery_price)
+                if assignment.delivery_price is not None
+                else None,
+                "estimated_minutes": assignment.estimated_minutes,
+                "distance_km": float(assignment.distance_km)
+                if assignment.distance_km is not None
+                else None,
                 "mechanic_id": assignment.mechanic_id,
-                "description": "Incidente asignado a taller y mecanico",
+                "mechanic_name": mechanic_name,
+                "description": "El taller envio una oferta para tu incidente",
             },
-            status=IncidentStatus.ASSIGNED,
+            status=incident.status if incident else None,
             assignment_id=assignment.id,
             repair_shop_id=assignment.repair_shop_id,
             mechanic_id=assignment.mechanic_id,
         )
 
-        self._emit_incident_realtime_event(
-            incident_id=assignment.incident_id,
-            event_type="assignment.mechanic.assigned",
-            payload={
-                "assignment_id": assignment.id,
-                "mechanic_id": assignment.mechanic_id,
-                "description": "Mecanico asignado al incidente",
-            },
-            status=IncidentStatus.ASSIGNED,
-            assignment_id=assignment.id,
-            repair_shop_id=assignment.repair_shop_id,
-            mechanic_id=assignment.mechanic_id,
-        )
-
-        self._send_mechanic_assignment_push(
-            mechanic_user_id=mechanic_link.user_id,
-            incident_id=assignment.incident_id,
-            assignment_id=assignment.id,
-        )
+        if incident:
+            self._notify_client_offer_received(
+                client_user_id=incident.user_id,
+                incident_id=incident.id,
+                assignment_id=assignment.id,
+            )
 
         return {
             "assignment_id": assignment.id,
             "incident_id": assignment.incident_id,
-            "status": AssignmentStatus.ACCEPTED.value,
-            "detail": "Oferta aceptada",
+            "status": AssignmentStatus.OFFERED.value,
+            "detail": "Oferta enviada al cliente",
             "next_notified_assignment_id": None,
         }
-
-    def _send_mechanic_assignment_push(
-        self,
-        *,
-        mechanic_user_id: UUID,
-        incident_id: UUID,
-        assignment_id: UUID,
-    ) -> None:
-        try:
-            PushNotificationService(self.db).notify_mechanic_assignment_created(
-                mechanic_user_id=mechanic_user_id,
-                incident_id=incident_id,
-                assignment_id=assignment_id,
-            )
-        except Exception as error:
-            logger.warning(
-                "No se pudo enviar push a mecanico user_id=%s incident_id=%s error=%s",
-                mechanic_user_id,
-                incident_id,
-                error,
-            )
 
     def _resolve_history_status(
         self, status: AssignmentStatus, expires_at: datetime | None
@@ -333,11 +296,11 @@ class OwnerOfferService(AssignmentBaseService):
             return value
         return value.astimezone(UTC).replace(tzinfo=None)
 
-    def _ensure_offer_actionable(
+    def _ensure_offer_submittable(
         self, status: AssignmentStatus, expires_at: datetime | None
     ) -> None:
-        if status != AssignmentStatus.PENDING:
-            raise HTTPException(status_code=409, detail="La oferta ya no esta pendiente")
+        if status not in (AssignmentStatus.PENDING, AssignmentStatus.OFFERED):
+            raise HTTPException(status_code=409, detail="La oferta ya no admite edicion")
 
         expires_at_naive = self._to_utc_naive(expires_at)
         if expires_at_naive is None:
@@ -394,6 +357,29 @@ class OwnerOfferService(AssignmentBaseService):
                 "No se pudo emitir evento realtime incident_id=%s type=%s error=%s",
                 incident_id,
                 event_type,
+                error,
+            )
+
+    def _notify_client_offer_received(
+        self,
+        *,
+        client_user_id: UUID,
+        incident_id: UUID,
+        assignment_id: UUID,
+    ) -> None:
+        try:
+            from app.modules.realtime.services import PushNotificationService
+
+            PushNotificationService(self.db).notify_client_offer_received(
+                client_user_id=client_user_id,
+                incident_id=incident_id,
+                assignment_id=assignment_id,
+            )
+        except Exception as error:
+            logger.warning(
+                "No se pudo enviar push de oferta al cliente user_id=%s incident_id=%s error=%s",
+                client_user_id,
+                incident_id,
                 error,
             )
 

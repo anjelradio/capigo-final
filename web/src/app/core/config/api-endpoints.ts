@@ -40,7 +40,7 @@ export const API_ENDPOINTS = {
     OWNER_ASSIGNMENTS: '/assignments/me/assignments',
     OWNER_OFFER_DETAIL: '/assignments',
     OWNER_SERVICE_REPORT_PDF_SUFFIX: 'service-report/pdf',
-    OWNER_ACCEPT_SUFFIX: 'accept',
+    OWNER_SUBMIT_OFFER_SUFFIX: 'submit-offer',
     OWNER_REJECT_SUFFIX: 'reject',
   },
   REALTIME: {

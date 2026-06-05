@@ -152,15 +152,17 @@ export class RealtimeOffersApiService {
     }
   }
 
-  async acceptOffer(
+  async submitOffer(
     assignmentId: string,
     mechanicId: string,
+    quotedPrice: number,
   ): Promise<ApiResult<OwnerOfferActionResponseData>> {
     return this.postOfferAction(
       assignmentId,
-      API_ENDPOINTS.ASSIGNMENTS.OWNER_ACCEPT_SUFFIX,
+      API_ENDPOINTS.ASSIGNMENTS.OWNER_SUBMIT_OFFER_SUFFIX,
       {
         mechanic_id: mechanicId,
+        quoted_price: quotedPrice,
       },
     );
   }

@@ -72,8 +72,12 @@ export class RealtimeOffersRepository {
     return this.realtimeOffersApi.downloadServiceReportPdf(assignmentId);
   }
 
-  async acceptOffer(assignmentId: string, mechanicId: string): Promise<ApiResult<OwnerOfferActionResult>> {
-    const response = await this.realtimeOffersApi.acceptOffer(assignmentId, mechanicId);
+  async submitOffer(
+    assignmentId: string,
+    mechanicId: string,
+    quotedPrice: number,
+  ): Promise<ApiResult<OwnerOfferActionResult>> {
+    const response = await this.realtimeOffersApi.submitOffer(assignmentId, mechanicId, quotedPrice);
     if (!response.ok) {
       return response;
     }
@@ -109,6 +113,7 @@ export class RealtimeOffersRepository {
       incidentDescription: offer.incident_description ?? null,
       distanceKm: offer.distance_km ?? null,
       deliveryPrice: offer.delivery_price ?? null,
+      quotedPrice: offer.quoted_price ?? null,
       notifiedAt: offer.notified_at ?? null,
       expiresAt: offer.expires_at ?? null,
     };
@@ -117,6 +122,8 @@ export class RealtimeOffersRepository {
   private mapOfferDetail(offer: OwnerOfferDetailData): OwnerOfferDetail {
     return {
       ...this.mapPendingOffer(offer),
+      assignmentStatus: offer.assignment_status ?? 'pending',
+      incidentStatus: offer.incident_status ?? null,
       incidentLatitude: offer.incident_latitude,
       incidentLongitude: offer.incident_longitude,
       repairShopLatitude: offer.repair_shop_latitude ?? null,
@@ -159,6 +166,7 @@ export class RealtimeOffersRepository {
       incidentDescription: assignment.incident_description ?? null,
       distanceKm: assignment.distance_km ?? null,
       deliveryPrice: assignment.delivery_price ?? null,
+      quotedPrice: assignment.quoted_price ?? null,
       status: assignment.status,
       mechanicName: assignment.mechanic_name ?? null,
       createdAt: assignment.created_at,

@@ -88,11 +88,11 @@ export const routes: Routes = [
           ),
       },
       {
-        path: 'owner/assignments/:assignmentId/activity',
+        path: 'owner/assignments/:assignmentId/detail',
         canActivate: [roleGuard(['owner']), ownerServicesCompleteGuard],
         loadComponent: () =>
-          import('./features/home/presentation/pages/owner-pages/owner-assignment-activity-page.component').then(
-            (m) => m.OwnerAssignmentActivityPageComponent,
+          import('./features/home/presentation/pages/owner-pages/owner-assignment-detail-page.component').then(
+            (m) => m.OwnerAssignmentDetailPageComponent,
           ),
       },
       {

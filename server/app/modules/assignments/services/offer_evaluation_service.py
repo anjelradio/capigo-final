@@ -132,7 +132,7 @@ class OfferEvaluationService(AssignmentBaseService):
                 },
                 status=incident.status,
             )
-            ShopOfferNotificationService(self.db).notify_next_offer_in_incident_queue_sync(
+            ShopOfferNotificationService(self.db).notify_all_pending_offers_in_incident_sync(
                 incident.id
             )
 

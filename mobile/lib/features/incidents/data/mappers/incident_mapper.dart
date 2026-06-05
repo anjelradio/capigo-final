@@ -154,4 +154,49 @@ class IncidentMapper {
       laborPrice: _asDouble(json['labor_price']),
     );
   }
+
+  static List<ClientIncidentOffer> clientIncidentOffersFromJson(
+    Map<String, dynamic>? json,
+  ) {
+    final offersJson = (json?['offers'] as List?) ?? const [];
+    return offersJson
+        .whereType<Map>()
+        .map((item) => item.cast<String, dynamic>())
+        .map(
+          (item) => ClientIncidentOffer(
+            assignmentId: '${item['assignment_id'] ?? ''}',
+            incidentId: '${item['incident_id'] ?? ''}',
+            repairShopId: '${item['repair_shop_id'] ?? ''}',
+            repairShopName: item['repair_shop_name'] as String?,
+            quotedPrice: _asDouble(item['quoted_price']),
+            deliveryPrice: _asDouble(item['delivery_price']),
+            estimatedMinutes: _asInt(item['estimated_minutes']),
+            distanceKm: _asDouble(item['distance_km']),
+            mechanicId: item['mechanic_id']?.toString(),
+            mechanicName: item['mechanic_name'] as String?,
+            offeredAt: BoliviaDateTimeFormatter.parseServerDateTime(
+              item['offered_at'],
+            ),
+          ),
+        )
+        .where(
+          (offer) =>
+              offer.assignmentId.trim().isNotEmpty &&
+              offer.incidentId.trim().isNotEmpty,
+        )
+        .toList();
+  }
+
+  static ClientOfferActionResult clientOfferActionResultFromJson(
+    Map<String, dynamic>? json,
+  ) {
+    final payload = json ?? const <String, dynamic>{};
+    return ClientOfferActionResult(
+      assignmentId: '${payload['assignment_id'] ?? ''}',
+      incidentId: '${payload['incident_id'] ?? ''}',
+      assignmentStatus: '${payload['assignment_status'] ?? ''}',
+      incidentStatus: '${payload['incident_status'] ?? ''}',
+      detail: '${payload['detail'] ?? ''}',
+    );
+  }
 }

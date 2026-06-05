@@ -6,7 +6,7 @@ from app.dependencies.auth import CurrentUser, DBSession
 from app.modules.assignments.schemas import (
     CandidateOfferEvaluationRequest,
     CandidateOfferEvaluationResponse,
-    OwnerOfferAcceptRequest,
+    OwnerSubmitOfferRequest,
     OwnerOfferActionResponse,
     OwnerAssignmentsResponse,
     OwnerOfferHistoryResponse,
@@ -22,10 +22,13 @@ from app.modules.assignments.schemas import (
     MechanicAssignmentCompleteRequest,
     MechanicServiceListResponse,
     MechanicTodayStatsRead,
+    ClientIncidentOffersResponse,
+    ClientOfferActionResponse,
 )
 from app.modules.assignments.services import (
     AssignmentOrchestratorService,
     CandidateShopSearchService,
+    ClientOfferService,
     MechanicAssignmentService,
     OfferEvaluationService,
     OwnerOfferService,
@@ -99,6 +102,54 @@ def notify_next_offer_in_queue(db: DBSession, user: CurrentUser, incident_id: UU
 
 
 @router.get(
+    "/incidents/{incident_id}/offers",
+    response_model=ClientIncidentOffersResponse,
+    status_code=status.HTTP_200_OK,
+)
+def list_my_incident_offers(db: DBSession, user: CurrentUser, incident_id: UUID):
+    return ClientOfferService(db).list_my_incident_offers(
+        user_id=user.id,
+        incident_id=incident_id,
+    )
+
+
+@router.post(
+    "/incidents/{incident_id}/offers/{assignment_id}/accept",
+    response_model=ClientOfferActionResponse,
+    status_code=status.HTTP_200_OK,
+)
+def accept_my_incident_offer(
+    db: DBSession,
+    user: CurrentUser,
+    incident_id: UUID,
+    assignment_id: UUID,
+):
+    return ClientOfferService(db).accept_my_incident_offer(
+        user_id=user.id,
+        incident_id=incident_id,
+        assignment_id=assignment_id,
+    )
+
+
+@router.post(
+    "/incidents/{incident_id}/offers/{assignment_id}/reject",
+    response_model=ClientOfferActionResponse,
+    status_code=status.HTTP_200_OK,
+)
+def reject_my_incident_offer(
+    db: DBSession,
+    user: CurrentUser,
+    incident_id: UUID,
+    assignment_id: UUID,
+):
+    return ClientOfferService(db).reject_my_incident_offer(
+        user_id=user.id,
+        incident_id=incident_id,
+        assignment_id=assignment_id,
+    )
+
+
+@router.get(
     "/me/offers/pending",
     response_model=OwnerPendingOffersResponse,
     status_code=status.HTTP_200_OK,
@@ -156,20 +207,21 @@ def download_my_service_report_pdf(db: DBSession, user: CurrentUser, assignment_
 
 
 @router.post(
-    "/{assignment_id}/accept",
+    "/{assignment_id}/submit-offer",
     response_model=OwnerOfferActionResponse,
     status_code=status.HTTP_200_OK,
 )
-def accept_my_offer(
+def submit_my_offer(
     db: DBSession,
     user: CurrentUser,
     assignment_id: UUID,
-    payload: OwnerOfferAcceptRequest,
+    payload: OwnerSubmitOfferRequest,
 ):
-    return OwnerOfferService(db).accept_my_offer(
+    return OwnerOfferService(db).submit_my_offer(
         user_id=user.id,
         assignment_id=assignment_id,
         mechanic_id=payload.mechanic_id,
+        quoted_price=payload.quoted_price,
     )
 
 

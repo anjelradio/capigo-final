@@ -195,4 +195,72 @@ class IncidentApi {
       throw CustomError('No fue posible cancelar el servicio');
     }
   }
+
+  Future<Map<String, dynamic>?> getIncidentOffers({
+    required String incidentId,
+  }) async {
+    try {
+      final response = await dio.get(
+        '/assignments/incidents/$incidentId/offers',
+      );
+      final data = response.data;
+      if (data == null) return null;
+      if (data is Map<String, dynamic>) return data;
+      if (data is Map) return data.cast<String, dynamic>();
+      return null;
+    } on DioException catch (e) {
+      _throwParsedDioError(
+        e,
+        'No fue posible cargar las ofertas del incidente',
+      );
+    } on CustomError {
+      rethrow;
+    } catch (_) {
+      throw CustomError('No fue posible cargar las ofertas del incidente');
+    }
+  }
+
+  Future<Map<String, dynamic>?> acceptIncidentOffer({
+    required String incidentId,
+    required String assignmentId,
+  }) async {
+    try {
+      final response = await dio.post(
+        '/assignments/incidents/$incidentId/offers/$assignmentId/accept',
+      );
+      final data = response.data;
+      if (data == null) return null;
+      if (data is Map<String, dynamic>) return data;
+      if (data is Map) return data.cast<String, dynamic>();
+      return null;
+    } on DioException catch (e) {
+      _throwParsedDioError(e, 'No fue posible aceptar la oferta');
+    } on CustomError {
+      rethrow;
+    } catch (_) {
+      throw CustomError('No fue posible aceptar la oferta');
+    }
+  }
+
+  Future<Map<String, dynamic>?> rejectIncidentOffer({
+    required String incidentId,
+    required String assignmentId,
+  }) async {
+    try {
+      final response = await dio.post(
+        '/assignments/incidents/$incidentId/offers/$assignmentId/reject',
+      );
+      final data = response.data;
+      if (data == null) return null;
+      if (data is Map<String, dynamic>) return data;
+      if (data is Map) return data.cast<String, dynamic>();
+      return null;
+    } on DioException catch (e) {
+      _throwParsedDioError(e, 'No fue posible rechazar la oferta');
+    } on CustomError {
+      rethrow;
+    } catch (_) {
+      throw CustomError('No fue posible rechazar la oferta');
+    }
+  }
 }

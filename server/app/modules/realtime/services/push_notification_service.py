@@ -194,6 +194,25 @@ class PushNotificationService:
             },
         )
 
+    def notify_client_offer_received(
+        self,
+        *,
+        client_user_id,
+        incident_id,
+        assignment_id,
+    ) -> dict:
+        return self.notify_user(
+            user_id=client_user_id,
+            title="Nueva oferta recibida",
+            body="Un taller envio una oferta para tu incidente.",
+            data={
+                "type": "client.assignment.offer.received",
+                "incident_id": str(incident_id),
+                "assignment_id": str(assignment_id),
+                "route": "/incidents/active-service",
+            },
+        )
+
     def _get_firebase_access_token_and_project(self) -> tuple[str | None, str | None]:
         raw_json = settings.FIREBASE_SERVICE_ACCOUNT_JSON.strip()
         if not raw_json:

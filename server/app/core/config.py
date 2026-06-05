@@ -68,6 +68,9 @@ class Settings(BaseSettings):
     @classmethod
     def parse_cors_origins(cls, value):
         if isinstance(value, str):
+            stripped = value.strip()
+            if stripped.startswith("["):
+                return value
             return [origin.strip() for origin in value.split(",") if origin.strip()]
         return value
 
@@ -75,8 +78,20 @@ class Settings(BaseSettings):
     @classmethod
     def parse_gemini_model_fallbacks(cls, value):
         if isinstance(value, str):
+            stripped = value.strip()
+            if stripped.startswith("["):
+                return value
             return [model.strip() for model in value.split(",") if model.strip()]
         return value
+
+    @property
+    def database_url_normalized(self) -> str:
+        url = self.DATABASE_URL.strip()
+        if url.startswith("postgres://"):
+            return "postgresql+psycopg://" + url[len("postgres://") :]
+        if url.startswith("postgresql://") and "+psycopg" not in url:
+            return "postgresql+psycopg://" + url[len("postgresql://") :]
+        return url
 
     @field_validator("ASSIGNMENT_BASE_FEE_BOB", "ASSIGNMENT_PRICE_PER_KM_BOB")
     @classmethod

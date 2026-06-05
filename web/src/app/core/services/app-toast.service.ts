@@ -35,7 +35,8 @@ export class AppToastService {
       disableTimeOut: false,
       tapToDismiss: true,
       closeButton: true,
-      timeOut: 8000,
+      timeOut: 120000,
+      extendedTimeOut: 120000,
     });
 
     if (!toastRef) {

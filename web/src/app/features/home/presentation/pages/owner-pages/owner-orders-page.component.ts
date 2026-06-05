@@ -2,17 +2,13 @@ import { CommonModule } from '@angular/common';
 import { Component, DestroyRef, inject, signal } from '@angular/core';
 import { ActivatedRoute, Router } from '@angular/router';
 
+import { APP_ROUTES } from '../../../../../core/config/routes';
 import { AppToastService } from '../../../../../core/services/app-toast.service';
-import { RepairShopRepository } from '../../../../../features/repair-shop/data/repositories/repair-shop.repository';
-import type { ShopMechanicData } from '../../../../../features/repair-shop/data/schemas/repair-shop.schema';
 import { RealtimeOffersRepository } from '../../../../../features/realtime/data/repositories/realtime-offers.repository';
 import type {
-  OwnerOfferDetail,
   OwnerOfferHistoryItem,
   OwnerPendingOffer,
 } from '../../../../../features/realtime/domain/entities/owner-offer';
-import { OwnerOfferDetailModalComponent } from '../../../../../features/realtime/presentation/components/owner-offer-detail-modal.component';
-import { OfferMechanicAssignmentModalComponent } from '../../../../../features/realtime/presentation/components/offer-mechanic-assignment-modal.component';
 import { RealtimeOffersSocketService } from '../../../../../features/realtime/presentation/services/realtime-offers-socket.service';
 import { formatUtcDateToLocal } from '../../../../../features/shared/data/infrastructure/date-time';
 import { CircularProgressLoaderComponent } from '../../../../../features/shared/presentation/components/loaders/circular-progress-loader.component';
@@ -27,8 +23,6 @@ import { HomeHeaderComponent } from '../../components/home-header/home-header.co
     HomeHeaderComponent,
     PageHeadingComponent,
     CircularProgressLoaderComponent,
-    OwnerOfferDetailModalComponent,
-    OfferMechanicAssignmentModalComponent,
   ],
   template: `
     <main class="app-dashboard-bg min-h-screen">
@@ -83,7 +77,7 @@ import { HomeHeaderComponent } from '../../components/home-header/home-header.co
 
               <div class="mt-4 grid gap-2 text-sm text-[var(--auth-text-secondary)] sm:grid-cols-3">
                 <p><strong class="text-[var(--app-text-primary)]">Distancia:</strong> {{ formatDistance(offer.distanceKm) }}</p>
-                <p><strong class="text-[var(--app-text-primary)]">Precio:</strong> {{ formatPrice(offer.deliveryPrice) }}</p>
+                <p><strong class="text-[var(--app-text-primary)]">Delivery:</strong> {{ formatPrice(offer.deliveryPrice) }}</p>
                 <p><strong class="text-[var(--app-text-primary)]">Expira:</strong> {{ formatExpiresAt(offer.expiresAt) }}</p>
               </div>
             </article>
@@ -129,10 +123,9 @@ import { HomeHeaderComponent } from '../../components/home-header/home-header.co
                     {{ historyStatusLabel(offer.status) }}
                   </span>
                   <button
-                    *ngIf="offer.status === 'accepted'"
                     type="button"
                     class="inline-flex items-center justify-center rounded-full bg-[var(--app-accent)] px-4 py-2 text-sm font-semibold text-[var(--app-accent-text)] transition hover:brightness-105"
-                    (click)="openAcceptedHistoryDetail(offer.assignmentId)"
+                    (click)="openOfferDetail(offer.assignmentId)"
                   >
                     Ver detalle
                   </button>
@@ -141,7 +134,7 @@ import { HomeHeaderComponent } from '../../components/home-header/home-header.co
 
               <div class="mt-4 grid gap-2 text-sm text-[var(--auth-text-secondary)] sm:grid-cols-3">
                 <p><strong class="text-[var(--app-text-primary)]">Distancia:</strong> {{ formatDistance(offer.distanceKm) }}</p>
-                <p><strong class="text-[var(--app-text-primary)]">Precio:</strong> {{ formatPrice(offer.deliveryPrice) }}</p>
+                <p><strong class="text-[var(--app-text-primary)]">Delivery:</strong> {{ formatPrice(offer.deliveryPrice) }}</p>
                 <p><strong class="text-[var(--app-text-primary)]">Actualizada:</strong> {{ formatExpiresAt(offer.respondedAt || offer.expiresAt) }}</p>
               </div>
             </article>
@@ -155,26 +148,6 @@ import { HomeHeaderComponent } from '../../components/home-header/home-header.co
           </article>
         </section>
       </section>
-
-      <app-owner-offer-detail-modal
-        [open]="isOfferModalOpen()"
-        [detail]="selectedOfferDetail()"
-        [isSubmitting]="isOfferActionSubmitting()"
-        [showActions]="showOfferActions()"
-        [onClose]="closeOfferModal"
-        (accept)="acceptSelectedOffer()"
-        (reject)="rejectSelectedOffer()"
-      />
-
-      <app-offer-mechanic-assignment-modal
-        [open]="isMechanicModalOpen()"
-        [mechanics]="availableMechanics()"
-        [selectedMechanicId]="selectedMechanicId()"
-        [isSubmitting]="isOfferActionSubmitting()"
-        (openChange)="setMechanicModalOpen($event)"
-        (selectedMechanicIdChange)="setSelectedMechanicId($event)"
-        (assign)="confirmAcceptWithMechanic()"
-      />
     </main>
   `,
 })
@@ -182,20 +155,12 @@ export class OwnerOrdersPageComponent {
   private readonly destroyRef = inject(DestroyRef);
   private readonly route = inject(ActivatedRoute);
   private readonly router = inject(Router);
-  private readonly repairShopRepository = inject(RepairShopRepository);
   private readonly realtimeOffersRepository = inject(RealtimeOffersRepository);
   private readonly realtimeOffersSocket = inject(RealtimeOffersSocketService);
   private readonly appToast = inject(AppToastService);
 
   readonly pendingOffers = signal<OwnerPendingOffer[]>([]);
   readonly historyOffers = signal<OwnerOfferHistoryItem[]>([]);
-  readonly selectedOfferDetail = signal<OwnerOfferDetail | null>(null);
-  readonly isOfferModalOpen = signal(false);
-  readonly isMechanicModalOpen = signal(false);
-  readonly isOfferActionSubmitting = signal(false);
-  readonly showOfferActions = signal(true);
-  readonly availableMechanics = signal<ShopMechanicData[]>([]);
-  readonly selectedMechanicId = signal<string | null>(null);
   readonly isLoadingOffers = signal(false);
   readonly isLoadingHistory = signal(false);
 
@@ -206,46 +171,20 @@ export class OwnerOrdersPageComponent {
     const createdSubscription = this.realtimeOffersSocket.offerCreated$.subscribe((offer) => {
       this.mergeIncomingOffer(offer);
     });
+    const statusChangedSubscription = this.realtimeOffersSocket.offerStatusChanged$.subscribe((event) => {
+      this.handleOfferStatusChanged(event.assignmentId, event.status);
+    });
     const routeSubscription = this.route.queryParamMap.subscribe((params) => {
       const assignmentId = params.get('offer');
-      if (!assignmentId) {
-        return;
-      }
-
-      void this.openOfferDetailInternal(assignmentId, {
-        clearQueryParamOnSuccess: true,
-        showActions: true,
-      });
+      if (!assignmentId) return;
+      void this.router.navigate([APP_ROUTES.APP_OWNER_ASSIGNMENTS, assignmentId, 'detail']);
     });
 
     this.destroyRef.onDestroy(() => {
       createdSubscription.unsubscribe();
+      statusChangedSubscription.unsubscribe();
       routeSubscription.unsubscribe();
     });
-  }
-
-  readonly closeOfferModal = (): void => {
-    if (this.isOfferActionSubmitting()) {
-      return;
-    }
-    this.isOfferModalOpen.set(false);
-    this.isMechanicModalOpen.set(false);
-    this.selectedMechanicId.set(null);
-  };
-
-  setMechanicModalOpen(open: boolean): void {
-    if (this.isOfferActionSubmitting()) {
-      return;
-    }
-
-    this.isMechanicModalOpen.set(open);
-    if (!open) {
-      this.selectedMechanicId.set(null);
-    }
-  }
-
-  setSelectedMechanicId(mechanicId: string): void {
-    this.selectedMechanicId.set(mechanicId);
   }
 
   trackByAssignmentId(_: number, offer: OwnerPendingOffer): string {
@@ -265,82 +204,28 @@ export class OwnerOrdersPageComponent {
   }
 
   async openOfferDetail(assignmentId: string): Promise<void> {
-    await this.openOfferDetailInternal(assignmentId, {
-      clearQueryParamOnSuccess: false,
-      showActions: true,
-    });
-  }
-
-  async openAcceptedHistoryDetail(assignmentId: string): Promise<void> {
-    await this.openOfferDetailInternal(assignmentId, {
-      clearQueryParamOnSuccess: false,
-      showActions: false,
-    });
+    await this.router.navigate([APP_ROUTES.APP_OWNER_ASSIGNMENTS, assignmentId, 'detail']);
   }
 
   historyStatusLabel(status: string): string {
-    if (status === 'expired') {
-      return 'Expirada';
-    }
-    if (status === 'rejected') {
-      return 'Rechazada';
-    }
-    if (status === 'accepted') {
-      return 'Aceptada';
-    }
-    if (status === 'completed') {
-      return 'Completada';
-    }
-    if (status === 'cancelled' || status === 'canceled') {
-      return 'Cancelada';
-    }
-    if (status === 'failed') {
-      return 'Fallida';
-    }
-    if (status === 'pending') {
-      return 'Pendiente';
-    }
+    if (status === 'offered') return 'Ofertada';
+    if (status === 'expired') return 'Expirada';
+    if (status === 'rejected') return 'Rechazada';
+    if (status === 'accepted') return 'Aceptada';
+    if (status === 'completed') return 'Completada';
+    if (status === 'cancelled' || status === 'canceled') return 'Cancelada';
+    if (status === 'failed') return 'Fallida';
+    if (status === 'pending') return 'Pendiente';
     return status;
   }
 
   historyStatusClass(status: string): string {
-    if (status === 'completed') {
-      return 'bg-sky-100 text-sky-800';
-    }
-    if (status === 'cancelled' || status === 'canceled') {
-      return 'bg-slate-200 text-slate-800';
-    }
-    if (status === 'accepted') {
-      return 'bg-emerald-100 text-emerald-800';
-    }
-    if (status === 'rejected') {
-      return 'bg-rose-100 text-rose-800';
-    }
+    if (status === 'offered') return 'bg-indigo-100 text-indigo-800';
+    if (status === 'completed') return 'bg-sky-100 text-sky-800';
+    if (status === 'cancelled' || status === 'canceled') return 'bg-slate-200 text-slate-800';
+    if (status === 'accepted') return 'bg-emerald-100 text-emerald-800';
+    if (status === 'rejected') return 'bg-rose-100 text-rose-800';
     return 'bg-amber-100 text-amber-900';
-  }
-
-  private async openOfferDetailInternal(
-    assignmentId: string,
-    options: { clearQueryParamOnSuccess: boolean; showActions: boolean },
-  ): Promise<void> {
-    const response = await this.realtimeOffersRepository.getOfferDetail(assignmentId);
-    if (!response.ok) {
-      this.appToast.showErrorList(response.errors);
-      return;
-    }
-
-    this.selectedOfferDetail.set(response.data);
-    this.showOfferActions.set(options.showActions);
-    this.isOfferModalOpen.set(true);
-
-    if (options.clearQueryParamOnSuccess) {
-      await this.router.navigate([], {
-        relativeTo: this.route,
-        queryParams: { offer: null },
-        queryParamsHandling: 'merge',
-        replaceUrl: true,
-      });
-    }
   }
 
   private async loadPendingOffers(): Promise<void> {
@@ -369,78 +254,23 @@ export class OwnerOrdersPageComponent {
     this.historyOffers.set(response.data);
   }
 
-  private mergeIncomingOffer(offer: OwnerOfferDetail): void {
+  private mergeIncomingOffer(offer: OwnerPendingOffer): void {
     this.pendingOffers.update((currentOffers) => {
       const next = currentOffers.filter((item) => item.assignmentId !== offer.assignmentId);
       return [offer, ...next];
     });
   }
 
-  async acceptSelectedOffer(): Promise<void> {
-    if (!this.selectedOfferDetail() || this.isOfferActionSubmitting()) {
+  private handleOfferStatusChanged(assignmentId: string, status: string): void {
+    this.pendingOffers.update((currentOffers) =>
+      currentOffers.filter((item) => item.assignmentId !== assignmentId),
+    );
+
+    const normalizedStatus = status.trim().toLowerCase();
+    if (normalizedStatus === 'accepted' || normalizedStatus === 'rejected') {
+      void this.loadOfferHistory();
       return;
     }
-
-    const mechanicsResponse = await this.repairShopRepository.listMyShopMechanics(true);
-    if (!mechanicsResponse.ok) {
-      this.appToast.showErrorList(mechanicsResponse.errors);
-      return;
-    }
-
-    this.availableMechanics.set(mechanicsResponse.data);
-    if (mechanicsResponse.data.length === 0) {
-      this.appToast.warning('No tienes mecanicos disponibles para asignar.');
-      return;
-    }
-
-    this.selectedMechanicId.set(mechanicsResponse.data[0].id);
-    this.isMechanicModalOpen.set(true);
-  }
-
-  async confirmAcceptWithMechanic(): Promise<void> {
-    const detail = this.selectedOfferDetail();
-    const mechanicId = this.selectedMechanicId();
-    if (!detail || !mechanicId || this.isOfferActionSubmitting()) {
-      return;
-    }
-
-    this.isOfferActionSubmitting.set(true);
-    const response = await this.realtimeOffersRepository.acceptOffer(detail.assignmentId, mechanicId);
-    this.isOfferActionSubmitting.set(false);
-
-    if (!response.ok) {
-      this.appToast.showErrorList(response.errors);
-      return;
-    }
-
-    this.appToast.success('Solicitud aceptada correctamente');
-    this.isMechanicModalOpen.set(false);
-    this.isOfferModalOpen.set(false);
-    this.selectedMechanicId.set(null);
-    await this.reloadOfferLists();
-  }
-
-  async rejectSelectedOffer(): Promise<void> {
-    const detail = this.selectedOfferDetail();
-    if (!detail || this.isOfferActionSubmitting()) {
-      return;
-    }
-
-    this.isOfferActionSubmitting.set(true);
-    const response = await this.realtimeOffersRepository.rejectOffer(detail.assignmentId);
-    this.isOfferActionSubmitting.set(false);
-
-    if (!response.ok) {
-      this.appToast.showErrorList(response.errors);
-      return;
-    }
-
-    this.appToast.info('Solicitud rechazada. Se notificara al siguiente taller en cola.');
-    this.isOfferModalOpen.set(false);
-    await this.reloadOfferLists();
-  }
-
-  private async reloadOfferLists(): Promise<void> {
-    await Promise.all([this.loadPendingOffers(), this.loadOfferHistory()]);
+    void this.loadPendingOffers();
   }
 }

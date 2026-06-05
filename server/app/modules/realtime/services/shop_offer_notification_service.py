@@ -75,6 +75,65 @@ class ShopOfferNotificationService:
             "delivered": delivered,
         }
 
+    async def notify_all_pending_offers_in_incident(self, incident_id: UUID) -> dict:
+        pending = self.request_assignment.list_pending_not_notified_by_incident(incident_id)
+        if not pending:
+            return {
+                "incident_id": incident_id,
+                "notified_count": 0,
+                "detail": "no_pending_offer_in_queue",
+            }
+
+        notified_count = 0
+        now_utc = datetime.now(UTC)
+        for assignment in pending:
+            assignment.notified_at = now_utc
+            assignment.expires_at = now_utc + timedelta(
+                seconds=max(settings.ASSIGNMENT_OFFER_TIMEOUT_SEC, 10)
+            )
+            assignment.notification_attempts += 1
+            self.db.add(assignment)
+
+        self.db.commit()
+
+        for assignment in pending:
+            payload = self.request_assignment.get_offer_notification_payload(assignment.id)
+            if not payload:
+                continue
+
+            delivered = await shop_realtime_manager.send_to_shop(
+                assignment.repair_shop_id,
+                event={
+                    "type": "assignment.offer.created",
+                    "payload": payload,
+                },
+            )
+
+            await self._emit_incident_realtime_event(
+                incident_id=incident_id,
+                event_type="assignment.shop.notified",
+                payload={
+                    "assignment_id": assignment.id,
+                    "repair_shop_id": assignment.repair_shop_id,
+                    "expires_at": assignment.expires_at,
+                    "delivered": delivered,
+                },
+                assignment_id=assignment.id,
+                repair_shop_id=assignment.repair_shop_id,
+            )
+
+            if delivered:
+                notified_count += 1
+
+        return {
+            "incident_id": incident_id,
+            "notified_count": notified_count,
+            "detail": "offers_broadcasted",
+        }
+
+    def notify_all_pending_offers_in_incident_sync(self, incident_id: UUID) -> dict:
+        return asyncio.run(self.notify_all_pending_offers_in_incident(incident_id))
+
     def notify_next_offer_in_incident_queue_sync(self, incident_id: UUID) -> dict:
         return asyncio.run(self.notify_next_offer_in_incident_queue(incident_id))
 

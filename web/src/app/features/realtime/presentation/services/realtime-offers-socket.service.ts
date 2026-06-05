@@ -10,6 +10,12 @@ import { RealtimeOffersRepository } from '../../data/repositories/realtime-offer
 import { RealtimeOfferEventSchema } from '../../data/schemas/realtime-offer.schema';
 import type { OwnerOfferDetail } from '../../domain/entities/owner-offer';
 
+type OfferStatusChangedEvent = {
+  assignmentId: string;
+  incidentId: string;
+  status: string;
+};
+
 const RECONNECT_DELAY_MS = 2500;
 
 @Injectable({ providedIn: 'root' })
@@ -25,9 +31,12 @@ export class RealtimeOffersSocketService {
   private readonly seenAssignmentIds = new Set<string>();
 
   private readonly offerCreatedSubject = new Subject<OwnerOfferDetail>();
+  private readonly offerStatusChangedSubject = new Subject<OfferStatusChangedEvent>();
   private readonly offerClickedSubject = new Subject<string>();
+  private readonly notificationAudio = new Audio('/notification.mp3');
 
   readonly offerCreated$ = this.offerCreatedSubject.asObservable();
+  readonly offerStatusChanged$ = this.offerStatusChangedSubject.asObservable();
   readonly offerClicked$ = this.offerClickedSubject.asObservable();
 
   connect(token: string): void {
@@ -127,6 +136,15 @@ export class RealtimeOffersSocketService {
       return;
     }
 
+    if (parsedEvent.data.type === 'assignment.offer.status_changed') {
+      this.offerStatusChangedSubject.next({
+        assignmentId: parsedEvent.data.payload.assignment_id,
+        incidentId: parsedEvent.data.payload.incident_id,
+        status: parsedEvent.data.payload.status,
+      });
+      return;
+    }
+
     const offerDetail = this.realtimeOffersRepository.mapOfferDetailFromSocket(parsedEvent.data.payload);
     const assignmentId = offerDetail.assignmentId;
     if (this.seenAssignmentIds.has(assignmentId)) {
@@ -135,6 +153,7 @@ export class RealtimeOffersSocketService {
 
     this.seenAssignmentIds.add(assignmentId);
     this.offerCreatedSubject.next(offerDetail);
+    this.playNotificationSound();
 
     const problem = offerDetail.problemName ?? 'Incidente';
     const distance = offerDetail.distanceKm ? `${offerDetail.distanceKm.toFixed(1)} km` : 'distancia n/d';
@@ -146,9 +165,7 @@ export class RealtimeOffersSocketService {
     );
 
     toastTap$?.pipe(take(1)).subscribe(async () => {
-      await this.router.navigate([APP_ROUTES.APP_OWNER_REQUESTS], {
-        queryParams: { offer: assignmentId },
-      });
+      await this.router.navigate([APP_ROUTES.APP_OWNER_ASSIGNMENTS, assignmentId, 'detail']);
       this.offerClickedSubject.next(assignmentId);
     });
   }
@@ -156,5 +173,14 @@ export class RealtimeOffersSocketService {
   private buildWsUrl(token: string): string {
     const wsApiBase = environment.apiUrl.replace(/^http/, 'ws');
     return `${wsApiBase}${API_ENDPOINTS.REALTIME.SHOP_OFFERS_WS}?token=${encodeURIComponent(token)}`;
+  }
+
+  private playNotificationSound(): void {
+    try {
+      this.notificationAudio.currentTime = 0;
+      void this.notificationAudio.play().catch(() => undefined);
+    } catch {
+      // no-op
+    }
   }
 }

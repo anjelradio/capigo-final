@@ -11,6 +11,7 @@ from app.core.base_model import UUIDBaseModel
 
 class AssignmentStatus(str, Enum):
     PENDING = "pending"
+    OFFERED = "offered"
     ACCEPTED = "accepted"
     REJECTED = "rejected"
     CANCELLED = "cancelled"
@@ -41,6 +42,10 @@ class RequestAssignment(UUIDBaseModel, table=True):
         sa_column=Column(Numeric(10, 3), nullable=True),
     )
     delivery_price: Decimal | None = Field(
+        default=None,
+        sa_column=Column(Numeric(10, 2), nullable=True),
+    )
+    quoted_price: Decimal | None = Field(
         default=None,
         sa_column=Column(Numeric(10, 2), nullable=True),
     )

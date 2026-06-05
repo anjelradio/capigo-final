@@ -8,7 +8,7 @@ import { Component, EventEmitter, HostListener, Input, Output } from '@angular/c
   template: `
     <div
       *ngIf="open"
-      class="fixed inset-0 z-50 flex items-center justify-center bg-black/35 px-4"
+      class="fixed inset-0 z-[2000] flex items-center justify-center bg-black/35 px-4"
       (click)="onBackdropClick($event)"
     >
       <section

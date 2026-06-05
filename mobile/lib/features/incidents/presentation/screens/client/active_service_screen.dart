@@ -52,6 +52,7 @@ class _ActiveServiceScreenState extends ConsumerState<ActiveServiceScreen> {
     final realtimeState = ref.watch(incidentRealtimeProvider);
     final mechanicLatitude = realtimeState.snapshot?.mechanicLatitude;
     final mechanicLongitude = realtimeState.snapshot?.mechanicLongitude;
+    final hasOfferOverlay = activeState.offers.isNotEmpty;
 
     if (detail != null) {
       final incidentId = detail.incident.id;
@@ -98,6 +99,22 @@ class _ActiveServiceScreenState extends ConsumerState<ActiveServiceScreen> {
         return;
       }
       context.go('/home/client');
+    });
+
+    ref.listen(incidentRealtimeProvider, (previous, next) {
+      final previousCount = previous?.events.length ?? 0;
+      if (next.events.length <= previousCount) return;
+
+      final latestEvent = next.events.last;
+      if (latestEvent.type == 'assignment.offer.submitted' ||
+          latestEvent.type == 'assignment.offer.rejected') {
+        activeNotifier.refreshOffersForIncident();
+        return;
+      }
+
+      if (latestEvent.type == 'assignment.client.accepted') {
+        activeNotifier.refreshActiveIncident();
+      }
     });
 
     return Scaffold(
@@ -261,9 +278,51 @@ class _ActiveServiceScreenState extends ConsumerState<ActiveServiceScreen> {
               );
             },
           ),
+          if (hasOfferOverlay)
+            ActiveServiceOffersOverlay(
+              offers: activeState.offers,
+              actingOfferId: activeState.actingOfferId,
+              isAcceptingOffer: activeState.isAcceptingOffer,
+              isLoadingOffers: activeState.isLoadingOffers,
+              errorMessage: activeState.offersErrorMessage,
+              onAcceptOffer: (assignmentId) =>
+                  _acceptOffer(activeNotifier, assignmentId),
+              onRejectOffer: (assignmentId) =>
+                  _rejectOffer(activeNotifier, assignmentId),
+            ),
         ],
       ),
     );
+  }
+
+  Future<void> _acceptOffer(
+    ActiveServiceNotifier activeNotifier,
+    String assignmentId,
+  ) async {
+    final success = await activeNotifier.acceptOffer(
+      assignmentId: assignmentId,
+    );
+    if (!mounted || !success) return;
+
+    ScaffoldMessenger.of(context)
+      ..hideCurrentSnackBar()
+      ..showSnackBar(
+        const SnackBar(content: Text('Oferta aceptada correctamente')),
+      );
+  }
+
+  Future<void> _rejectOffer(
+    ActiveServiceNotifier activeNotifier,
+    String assignmentId,
+  ) async {
+    final success = await activeNotifier.rejectOffer(
+      assignmentId: assignmentId,
+    );
+    if (!mounted || !success) return;
+
+    ScaffoldMessenger.of(context)
+      ..hideCurrentSnackBar()
+      ..showSnackBar(const SnackBar(content: Text('Oferta rechazada')));
   }
 
   Future<void> _confirmAndCancel(ActiveServiceNotifier activeNotifier) async {

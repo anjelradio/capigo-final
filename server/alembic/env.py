@@ -1,11 +1,11 @@
-import os
 from logging.config import fileConfig
 
 from dotenv import load_dotenv
-from sqlalchemy import create_engine, engine_from_config, pool
+from sqlalchemy import create_engine, pool
 from sqlmodel import SQLModel
 
 from alembic import context
+from app.core.config import settings
 from app.modules.assignments.models import RequestAssignment
 from app.modules.incidents.models import (
     Evidence,
@@ -40,19 +40,7 @@ if config.config_file_name is not None:
 # from myapp import mymodel
 # target_metadata = mymodel.Base.metadata
 load_dotenv()
-# DEV
-# DATABASE_URL = os.getenv("DATABASE_URL")
-
-
-# PROD
-raw_url = os.environ["DATABASE_URL"]
-url = raw_url
-if url.startswith("postgres//"):
-    url = "postgresql+psycopg://" + url[len("postgres://") :]
-elif url.startswith("postgresql://") and "+psycopg" not in url:
-    url = "postgresql+psycopg://" + url[len("postgresql://") :]
-
-DATABASE_URL = url
+DATABASE_URL = settings.database_url_normalized
 
 target_metadata = SQLModel.metadata
 

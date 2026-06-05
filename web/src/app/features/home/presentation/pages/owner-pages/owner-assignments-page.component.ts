@@ -1,15 +1,15 @@
 import { CommonModule } from '@angular/common';
-import { Component, inject, signal } from '@angular/core';
+import { Component, DestroyRef, inject, signal } from '@angular/core';
 import { Router } from '@angular/router';
 
 import { AppToastService } from '../../../../../core/services/app-toast.service';
 import { RealtimeOffersRepository } from '../../../../../features/realtime/data/repositories/realtime-offers.repository';
+import { RealtimeOffersSocketService } from '../../../../../features/realtime/presentation/services/realtime-offers-socket.service';
 import { formatUtcDateToLocal } from '../../../../../features/shared/data/infrastructure/date-time';
 import type {
   OwnerAssignmentItem,
-  OwnerOfferDetail,
 } from '../../../../../features/realtime/domain/entities/owner-offer';
-import { OwnerOfferDetailModalComponent } from '../../../../../features/realtime/presentation/components/owner-offer-detail-modal.component';
+import { APP_ROUTES } from '../../../../../core/config/routes';
 import { CircularProgressLoaderComponent } from '../../../../../features/shared/presentation/components/loaders/circular-progress-loader.component';
 import { PageHeadingComponent } from '../../../../../features/shared/presentation/components/layout/page-heading.component';
 import { HomeHeaderComponent } from '../../components/home-header/home-header.component';
@@ -21,7 +21,6 @@ import { HomeHeaderComponent } from '../../components/home-header/home-header.co
     CommonModule,
     HomeHeaderComponent,
     PageHeadingComponent,
-    OwnerOfferDetailModalComponent,
     CircularProgressLoaderComponent,
   ],
   template: `
@@ -93,36 +92,31 @@ import { HomeHeaderComponent } from '../../components/home-header/home-header.co
         </section>
       </section>
 
-      <app-owner-offer-detail-modal
-        [open]="isDetailModalOpen()"
-        [detail]="selectedAssignmentDetail()"
-        [isLoading]="isDetailLoading()"
-        [showActions]="false"
-        [onClose]="closeDetailModal"
-      />
     </main>
   `,
 })
 export class OwnerAssignmentsPageComponent {
+  private readonly destroyRef = inject(DestroyRef);
   private readonly offersRepository = inject(RealtimeOffersRepository);
+  private readonly realtimeOffersSocket = inject(RealtimeOffersSocketService);
   private readonly appToast = inject(AppToastService);
   private readonly router = inject(Router);
 
   readonly assignments = signal<OwnerAssignmentItem[]>([]);
   readonly isLoading = signal(false);
-  readonly selectedAssignmentDetail = signal<OwnerOfferDetail | null>(null);
-  readonly isDetailModalOpen = signal(false);
-  readonly isDetailLoading = signal(false);
   readonly downloadingAssignmentId = signal<string | null>(null);
 
   constructor() {
     void this.loadAssignments();
-  }
 
-  readonly closeDetailModal = (): void => {
-    this.isDetailModalOpen.set(false);
-    this.isDetailLoading.set(false);
-  };
+    const statusChangedSubscription = this.realtimeOffersSocket.offerStatusChanged$.subscribe(() => {
+      void this.loadAssignments();
+    });
+
+    this.destroyRef.onDestroy(() => {
+      statusChangedSubscription.unsubscribe();
+    });
+  }
 
   trackByAssignment(_: number, assignment: OwnerAssignmentItem): string {
     return assignment.assignmentId;
@@ -161,7 +155,7 @@ export class OwnerAssignmentsPageComponent {
   }
 
   actionLabel(status: string): string {
-    return status === 'accepted' ? 'Ver actividad' : 'Ver detalle';
+    return status === 'accepted' ? 'Monitorear' : 'Ver detalle';
   }
 
   canDownloadReport(status: string): boolean {
@@ -169,29 +163,7 @@ export class OwnerAssignmentsPageComponent {
   }
 
   async handleAssignmentAction(assignment: OwnerAssignmentItem): Promise<void> {
-    if (assignment.status === 'accepted') {
-      await this.router.navigate(['/app/owner/assignments', assignment.assignmentId, 'activity']);
-      return;
-    }
-
-    await this.openAssignmentDetail(assignment.assignmentId);
-  }
-
-  async openAssignmentDetail(assignmentId: string): Promise<void> {
-    this.selectedAssignmentDetail.set(null);
-    this.isDetailModalOpen.set(true);
-    this.isDetailLoading.set(true);
-
-    const response = await this.offersRepository.getOfferDetail(assignmentId);
-    this.isDetailLoading.set(false);
-
-    if (!response.ok) {
-      this.appToast.showErrorList(response.errors);
-      this.isDetailModalOpen.set(false);
-      return;
-    }
-
-    this.selectedAssignmentDetail.set(response.data);
+    await this.router.navigate([APP_ROUTES.APP_OWNER_ASSIGNMENTS, assignment.assignmentId, 'detail']);
   }
 
   async downloadServiceReport(assignment: OwnerAssignmentItem): Promise<void> {
