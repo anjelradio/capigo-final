@@ -111,13 +111,13 @@ class _RequestServiceScreenState extends ConsumerState<RequestServiceScreen> {
                   return;
                 }
 
-                final success = await formNotifier.submitIncident(
+                final submissionOutcome = await formNotifier.submitIncident(
                   latitude: resolvedLocation.latitude!,
                   longitude: resolvedLocation.longitude!,
                 );
                 if (!context.mounted) return;
 
-                if (success) {
+                if (submissionOutcome == RequestServiceSubmissionOutcome.sent) {
                   _descriptionController.clear();
                   messenger
                     ..hideCurrentSnackBar()
@@ -128,6 +128,18 @@ class _RequestServiceScreenState extends ConsumerState<RequestServiceScreen> {
                       ),
                     );
                   context.go('/incidents/active-service');
+                } else if (submissionOutcome == RequestServiceSubmissionOutcome.queued) {
+                  _descriptionController.clear();
+                  messenger
+                    ..hideCurrentSnackBar()
+                    ..showSnackBar(
+                      const SnackBar(
+                        content: Text(
+                          'Sin conexion. La solicitud quedo pendiente y se enviara automaticamente.',
+                        ),
+                        backgroundColor: AppColors.toastWarning,
+                      ),
+                    );
                 } else {
                   final latestFormState = ref.read(requestServiceFormProvider);
                   final fallbackError = latestFormState.errorMessage.isNotEmpty

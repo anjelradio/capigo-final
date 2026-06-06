@@ -34,6 +34,7 @@ def create_incident(
     latitude: float = Form(...),
     longitude: float = Form(...),
     description: str | None = Form(default=None),
+    client_request_id: str | None = Form(default=None),
     audio: UploadFile | None = File(default=None),
     photos: list[UploadFile] = File(...),
 ):
@@ -43,6 +44,7 @@ def create_incident(
         latitude=latitude,
         longitude=longitude,
         description=description,
+        client_request_id=client_request_id,
         audio=audio,
         photos=photos,
     )

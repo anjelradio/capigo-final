@@ -138,6 +138,7 @@ export class HomeHeaderComponent {
     const normalizedPath = path.endsWith('/') ? path.slice(0, -1) : path;
 
     if (
+      normalizedPath === APP_ROUTES.APP_OWNER_HOME ||
       normalizedPath === APP_ROUTES.APP_HOME_OWNER ||
       normalizedPath === APP_ROUTES.APP_HOME_ADMIN
     ) {

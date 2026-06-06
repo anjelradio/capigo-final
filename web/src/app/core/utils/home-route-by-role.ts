@@ -7,7 +7,7 @@ export function resolveHomeRouteByRole(role: UserRole | null | undefined): strin
     case 'admin':
       return APP_ROUTES.APP_HOME_ADMIN;
     case 'owner':
-      return APP_ROUTES.APP_OWNER_REQUESTS;
+      return APP_ROUTES.APP_OWNER_HOME;
     case 'mechanic':
       return APP_ROUTES.APP_HOME_MECHANIC;
     case 'client':

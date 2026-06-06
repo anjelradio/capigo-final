@@ -15,6 +15,8 @@ final activeServiceProvider =
         loadIncidentOffersCallback: incidentRepository.getIncidentOffers,
         acceptIncidentOfferCallback: incidentRepository.acceptIncidentOffer,
         rejectIncidentOfferCallback: incidentRepository.rejectIncidentOffer,
+        createCheckoutSessionCallback:
+            incidentRepository.createIncidentCheckoutSession,
       );
     });
 
@@ -25,6 +27,7 @@ class ActiveServiceNotifier extends StateNotifier<ActiveServiceState> {
     required this.loadIncidentOffersCallback,
     required this.acceptIncidentOfferCallback,
     required this.rejectIncidentOfferCallback,
+    required this.createCheckoutSessionCallback,
   }) : super(ActiveServiceState());
 
   final Future<ActiveIncidentDetail?> Function() loadActiveIncidentCallback;
@@ -42,6 +45,8 @@ class ActiveServiceNotifier extends StateNotifier<ActiveServiceState> {
     required String assignmentId,
   })
   rejectIncidentOfferCallback;
+  final Future<PaymentCheckoutSession> Function({required String incidentId})
+  createCheckoutSessionCallback;
 
   Future<void> loadActiveIncident() async {
     if (state.isLoading || state.isRefreshing) return;
@@ -51,6 +56,37 @@ class ActiveServiceNotifier extends StateNotifier<ActiveServiceState> {
   Future<void> refreshActiveIncident() async {
     if (state.isLoading || state.isRefreshing) return;
     await _resolveActiveIncident(isRefresh: true);
+  }
+
+  void applyAssignmentFinalPrice(double? finalPrice) {
+    final current = state.detail;
+    final currentAssignment = current?.assignment;
+    if (current == null || currentAssignment == null) return;
+    if (finalPrice == null) return;
+
+    final patchedAssignment = ActiveIncidentAssignment(
+      requestAssignmentId: currentAssignment.requestAssignmentId,
+      status: currentAssignment.status,
+      repairShopId: currentAssignment.repairShopId,
+      repairShopName: currentAssignment.repairShopName,
+      repairShopLatitude: currentAssignment.repairShopLatitude,
+      repairShopLongitude: currentAssignment.repairShopLongitude,
+      mechanicId: currentAssignment.mechanicId,
+      mechanicName: currentAssignment.mechanicName,
+      mechanicPhone: currentAssignment.mechanicPhone,
+      estimatedMinutes: currentAssignment.estimatedMinutes,
+      quotedPrice: currentAssignment.quotedPrice,
+      finalPrice: finalPrice,
+    );
+
+    final patchedDetail = ActiveIncidentDetail(
+      incident: current.incident,
+      vehicle: current.vehicle,
+      evidences: current.evidences,
+      assignment: patchedAssignment,
+    );
+
+    state = state.copyWith(detail: patchedDetail);
   }
 
   Future<void> _resolveActiveIncident({required bool isRefresh}) async {
@@ -222,6 +258,41 @@ class ActiveServiceNotifier extends StateNotifier<ActiveServiceState> {
     }
   }
 
+  Future<PaymentCheckoutSession?> createCheckoutSession() async {
+    final incidentId = state.detail?.incident.id.trim() ?? '';
+    if (incidentId.isEmpty || state.isCreatingPayment) return null;
+
+    state = state.copyWith(
+      isCreatingPayment: true,
+      paymentErrorMessages: const [],
+    );
+    try {
+      final session = await createCheckoutSessionCallback(
+        incidentId: incidentId,
+      );
+      if (!mounted) return null;
+      state = state.copyWith(
+        isCreatingPayment: false,
+        paymentErrorMessages: const [],
+      );
+      return session;
+    } on CustomError catch (error) {
+      if (!mounted) return null;
+      state = state.copyWith(
+        isCreatingPayment: false,
+        paymentErrorMessages: error.messages,
+      );
+      return null;
+    } catch (_) {
+      if (!mounted) return null;
+      state = state.copyWith(
+        isCreatingPayment: false,
+        paymentErrorMessages: const ['No fue posible iniciar el pago.'],
+      );
+      return null;
+    }
+  }
+
   Future<_OfferLoadResult> _loadIncidentOffersGuarded({
     required String incidentId,
   }) async {
@@ -283,6 +354,8 @@ class ActiveServiceState {
     this.actingOfferId = '',
     this.isAcceptingOffer = false,
     this.offersErrorMessages = const [],
+    this.isCreatingPayment = false,
+    this.paymentErrorMessages = const [],
     this.errorMessages = const [],
   });
 
@@ -296,6 +369,8 @@ class ActiveServiceState {
   final String actingOfferId;
   final bool isAcceptingOffer;
   final List<String> offersErrorMessages;
+  final bool isCreatingPayment;
+  final List<String> paymentErrorMessages;
   final List<String> errorMessages;
 
   String get errorMessage =>
@@ -303,6 +378,9 @@ class ActiveServiceState {
 
   String get offersErrorMessage =>
       offersErrorMessages.isNotEmpty ? offersErrorMessages.first : '';
+
+  String get paymentErrorMessage =>
+      paymentErrorMessages.isNotEmpty ? paymentErrorMessages.first : '';
 
   ActiveServiceState copyWith({
     bool? isLoading,
@@ -315,6 +393,8 @@ class ActiveServiceState {
     String? actingOfferId,
     bool? isAcceptingOffer,
     List<String>? offersErrorMessages,
+    bool? isCreatingPayment,
+    List<String>? paymentErrorMessages,
     List<String>? errorMessages,
   }) {
     return ActiveServiceState(
@@ -328,6 +408,8 @@ class ActiveServiceState {
       actingOfferId: actingOfferId ?? this.actingOfferId,
       isAcceptingOffer: isAcceptingOffer ?? this.isAcceptingOffer,
       offersErrorMessages: offersErrorMessages ?? this.offersErrorMessages,
+      isCreatingPayment: isCreatingPayment ?? this.isCreatingPayment,
+      paymentErrorMessages: paymentErrorMessages ?? this.paymentErrorMessages,
       errorMessages: errorMessages ?? this.errorMessages,
     );
   }

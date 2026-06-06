@@ -23,6 +23,7 @@ class IncidentRead(SQLModel):
     vehicle_id: UUID
     problem_id: UUID | None
     created_date: datetime
+    client_request_id: str | None = None
     evidences: list[IncidentEvidenceRead]
 
 
@@ -49,6 +50,8 @@ class ActiveIncidentAssignmentRead(SQLModel):
     mechanic_name: str | None = None
     mechanic_phone: str | None = None
     estimated_minutes: int | None = None
+    quoted_price: Decimal | None = None
+    final_price: Decimal | None = None
 
 
 class ActiveIncidentDetailRead(SQLModel):

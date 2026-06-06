@@ -59,7 +59,23 @@ class IncidentMapper {
               mechanicName: assignmentJson['mechanic_name'] as String?,
               mechanicPhone: assignmentJson['mechanic_phone'] as String?,
               estimatedMinutes: _asInt(assignmentJson['estimated_minutes']),
+              quotedPrice: _asDouble(assignmentJson['quoted_price']),
+              finalPrice: _asDouble(assignmentJson['final_price']),
             ),
+    );
+  }
+
+  static PaymentCheckoutSession paymentCheckoutSessionFromJson(
+    Map<String, dynamic>? json,
+  ) {
+    final payload = json ?? const <String, dynamic>{};
+    return PaymentCheckoutSession(
+      paymentId: '${payload['payment_id'] ?? ''}',
+      checkoutSessionId: '${payload['checkout_session_id'] ?? ''}',
+      checkoutUrl: '${payload['checkout_url'] ?? ''}',
+      amount: _asDouble(payload['amount']) ?? 0,
+      currency: '${payload['currency'] ?? ''}',
+      status: '${payload['status'] ?? ''}',
     );
   }
 

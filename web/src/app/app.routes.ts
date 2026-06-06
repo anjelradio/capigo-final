@@ -61,7 +61,15 @@ export const routes: Routes = [
       {
         path: 'owner',
         pathMatch: 'full',
-        redirectTo: 'owner/requests',
+        redirectTo: 'owner/home',
+      },
+      {
+        path: 'owner/home',
+        canActivate: [roleGuard(['owner']), ownerServicesCompleteGuard],
+        loadComponent: () =>
+          import('./features/home/presentation/pages/owner-pages/owner-home-page.component').then(
+            (m) => m.OwnerHomePageComponent,
+          ),
       },
       {
         path: 'owner/requests',

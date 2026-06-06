@@ -8,6 +8,7 @@ from sqlmodel import Session
 from app.core.config import settings
 from app.modules.assignments.repositories import RequestAssignmentRepository
 from app.modules.assignments.models import AssignmentStatus
+from app.modules.incidents.services.incident_workflow_service import IncidentWorkflowEvent
 
 from .connection_manager import shop_realtime_manager
 
@@ -50,14 +51,14 @@ class ShopOfferNotificationService:
         delivered = await shop_realtime_manager.send_to_shop(
             assignment.repair_shop_id,
             event={
-                "type": "assignment.offer.created",
+                "type": IncidentWorkflowEvent.ASSIGNMENT_OFFER_CREATED,
                 "payload": payload,
             },
         )
 
         await self._emit_incident_realtime_event(
             incident_id=incident_id,
-            event_type="assignment.shop.notified",
+            event_type=IncidentWorkflowEvent.ASSIGNMENT_SHOP_NOTIFIED,
             payload={
                 "assignment_id": assignment.id,
                 "repair_shop_id": assignment.repair_shop_id,
@@ -104,14 +105,14 @@ class ShopOfferNotificationService:
             delivered = await shop_realtime_manager.send_to_shop(
                 assignment.repair_shop_id,
                 event={
-                    "type": "assignment.offer.created",
+                    "type": IncidentWorkflowEvent.ASSIGNMENT_OFFER_CREATED,
                     "payload": payload,
                 },
             )
 
             await self._emit_incident_realtime_event(
                 incident_id=incident_id,
-                event_type="assignment.shop.notified",
+                event_type=IncidentWorkflowEvent.ASSIGNMENT_SHOP_NOTIFIED,
                 payload={
                     "assignment_id": assignment.id,
                     "repair_shop_id": assignment.repair_shop_id,
@@ -150,7 +151,7 @@ class ShopOfferNotificationService:
             delivered = await shop_realtime_manager.send_to_shop(
                 shop_id,
                 event={
-                    "type": "assignment.offer.created",
+                    "type": IncidentWorkflowEvent.ASSIGNMENT_OFFER_CREATED,
                     "payload": payload,
                 },
             )
@@ -194,7 +195,7 @@ class ShopOfferNotificationService:
         for incident_id in sorted(incident_ids, key=str):
             await self._emit_incident_realtime_event(
                 incident_id=incident_id,
-                event_type="assignment.offer.expired",
+                event_type=IncidentWorkflowEvent.ASSIGNMENT_OFFER_EXPIRED,
                 payload={
                     "description": "Una oferta expiro y se intentara notificar al siguiente taller",
                 },

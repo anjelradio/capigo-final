@@ -7,6 +7,7 @@ import 'package:mobile/features/incidents/presentation/providers/providers.dart'
 import 'package:mobile/features/incidents/presentation/widgets/widgets.dart';
 import 'package:mobile/features/realtime/realtime.dart';
 import 'package:mobile/features/shared/shared.dart';
+import 'package:url_launcher/url_launcher.dart';
 
 class ActiveServiceScreen extends ConsumerStatefulWidget {
   const ActiveServiceScreen({super.key});
@@ -16,7 +17,8 @@ class ActiveServiceScreen extends ConsumerStatefulWidget {
       _ActiveServiceScreenState();
 }
 
-class _ActiveServiceScreenState extends ConsumerState<ActiveServiceScreen> {
+class _ActiveServiceScreenState extends ConsumerState<ActiveServiceScreen>
+    with WidgetsBindingObserver {
   static const _fallbackLatitude = 13.6929;
   static const _fallbackLongitude = -89.2182;
   static const _sheetInitialSize = 0.37;
@@ -28,6 +30,7 @@ class _ActiveServiceScreenState extends ConsumerState<ActiveServiceScreen> {
   @override
   void initState() {
     super.initState();
+    WidgetsBinding.instance.addObserver(this);
     Future.microtask(() {
       ref.read(activeServiceProvider.notifier).loadActiveIncident();
     });
@@ -35,8 +38,15 @@ class _ActiveServiceScreenState extends ConsumerState<ActiveServiceScreen> {
 
   @override
   void dispose() {
+    WidgetsBinding.instance.removeObserver(this);
     _sheetController.dispose();
     super.dispose();
+  }
+
+  @override
+  void didChangeAppLifecycleState(AppLifecycleState state) {
+    if (state != AppLifecycleState.resumed) return;
+    ref.read(activeServiceProvider.notifier).refreshActiveIncident();
   }
 
   @override
@@ -53,6 +63,15 @@ class _ActiveServiceScreenState extends ConsumerState<ActiveServiceScreen> {
     final mechanicLatitude = realtimeState.snapshot?.mechanicLatitude;
     final mechanicLongitude = realtimeState.snapshot?.mechanicLongitude;
     final hasOfferOverlay = activeState.offers.isNotEmpty;
+    final currentStatus = realtimeState.currentStatus.isNotEmpty
+        ? realtimeState.currentStatus
+        : (detail?.incident.status ?? '');
+    final normalizedCurrentStatus = currentStatus.trim().toLowerCase();
+    final normalizedAssignmentStatus =
+        detail?.assignment?.status.trim().toLowerCase() ?? '';
+    final isPaymentPending =
+        normalizedCurrentStatus == 'payment_pending' ||
+        normalizedAssignmentStatus == 'payment_pending';
 
     if (detail != null) {
       final incidentId = detail.incident.id;
@@ -112,7 +131,16 @@ class _ActiveServiceScreenState extends ConsumerState<ActiveServiceScreen> {
         return;
       }
 
-      if (latestEvent.type == 'assignment.client.accepted') {
+      if (latestEvent.type == 'assignment.client.accepted' ||
+          latestEvent.type == 'payment.checkout.created' ||
+          latestEvent.type == 'payment.completed') {
+        activeNotifier.refreshActiveIncident();
+      }
+
+      if (latestEvent.type == 'assignment.final_report.submitted') {
+        final rawPrice = latestEvent.payload['final_price'];
+        final price = rawPrice is num ? rawPrice.toDouble() : null;
+        activeNotifier.applyAssignmentFinalPrice(price);
         activeNotifier.refreshActiveIncident();
       }
     });
@@ -228,9 +256,7 @@ class _ActiveServiceScreenState extends ConsumerState<ActiveServiceScreen> {
                             crossAxisAlignment: CrossAxisAlignment.stretch,
                             children: [
                               ActiveServiceRealtimeStatusBanner(
-                                status: realtimeState.currentStatus.isNotEmpty
-                                    ? realtimeState.currentStatus
-                                    : detail.incident.status,
+                                status: currentStatus,
                                 isConnecting: realtimeState.isConnecting,
                                 isConnected: realtimeState.isConnected,
                               ),
@@ -240,34 +266,44 @@ class _ActiveServiceScreenState extends ConsumerState<ActiveServiceScreen> {
                                 clientDisplayName: clientDisplayName,
                               ),
                               const SizedBox(height: 14),
-                              SizedBox(
-                                width: double.infinity,
-                                child: OutlinedButton.icon(
-                                  onPressed: activeState.isCancelling
-                                      ? null
-                                      : () => _confirmAndCancel(activeNotifier),
-                                  icon: activeState.isCancelling
-                                      ? const SizedBox(
-                                          width: 16,
-                                          height: 16,
-                                          child: CircularProgressIndicator(
-                                            strokeWidth: 2,
-                                          ),
-                                        )
-                                      : const Icon(Icons.cancel_rounded),
-                                  label: Text(
-                                    activeState.isCancelling
-                                        ? 'Cancelando...'
-                                        : 'Cancelar solicitud',
-                                  ),
-                                  style: OutlinedButton.styleFrom(
-                                    foregroundColor: const Color(0xFFF59E9E),
-                                    side: const BorderSide(
-                                      color: Color(0xFF8C4A4A),
+                              if (isPaymentPending)
+                                _PaymentPendingCard(
+                                  finalPrice: detail.assignment?.finalPrice,
+                                  currency: 'BOB',
+                                  isLoading: activeState.isCreatingPayment,
+                                  errorMessage: activeState.paymentErrorMessage,
+                                  onPayTap: () => _startPayment(activeNotifier),
+                                )
+                              else
+                                SizedBox(
+                                  width: double.infinity,
+                                  child: OutlinedButton.icon(
+                                    onPressed: activeState.isCancelling
+                                        ? null
+                                        : () =>
+                                              _confirmAndCancel(activeNotifier),
+                                    icon: activeState.isCancelling
+                                        ? const SizedBox(
+                                            width: 16,
+                                            height: 16,
+                                            child: CircularProgressIndicator(
+                                              strokeWidth: 2,
+                                            ),
+                                          )
+                                        : const Icon(Icons.cancel_rounded),
+                                    label: Text(
+                                      activeState.isCancelling
+                                          ? 'Cancelando...'
+                                          : 'Cancelar solicitud',
+                                    ),
+                                    style: OutlinedButton.styleFrom(
+                                      foregroundColor: const Color(0xFFF59E9E),
+                                      side: const BorderSide(
+                                        color: Color(0xFF8C4A4A),
+                                      ),
                                     ),
                                   ),
                                 ),
-                              ),
                             ],
                           ),
                         const SizedBox(height: 24),
@@ -323,6 +359,47 @@ class _ActiveServiceScreenState extends ConsumerState<ActiveServiceScreen> {
     ScaffoldMessenger.of(context)
       ..hideCurrentSnackBar()
       ..showSnackBar(const SnackBar(content: Text('Oferta rechazada')));
+  }
+
+  Future<void> _startPayment(ActiveServiceNotifier activeNotifier) async {
+    final session = await activeNotifier.createCheckoutSession();
+    if (!mounted) return;
+
+    if (session == null) {
+      final message = ref.read(activeServiceProvider).paymentErrorMessage;
+      ScaffoldMessenger.of(context)
+        ..hideCurrentSnackBar()
+        ..showSnackBar(
+          SnackBar(
+            content: Text(
+              message.isEmpty ? 'No fue posible iniciar el pago.' : message,
+            ),
+          ),
+        );
+      return;
+    }
+
+    final uri = Uri.tryParse(session.checkoutUrl);
+    if (uri == null) {
+      ScaffoldMessenger.of(context).showSnackBar(
+        const SnackBar(content: Text('El enlace de pago no es valido.')),
+      );
+      return;
+    }
+
+    final launched = await launchUrl(uri, mode: LaunchMode.externalApplication);
+    if (!mounted) return;
+
+    if (!launched) {
+      ScaffoldMessenger.of(context).showSnackBar(
+        const SnackBar(content: Text('No fue posible abrir Stripe.')),
+      );
+      return;
+    }
+
+    ScaffoldMessenger.of(context).showSnackBar(
+      const SnackBar(content: Text('Completa el pago y vuelve a la app.')),
+    );
   }
 
   Future<void> _confirmAndCancel(ActiveServiceNotifier activeNotifier) async {
@@ -445,6 +522,154 @@ class _ActiveServiceHeader extends StatelessWidget {
             splashRadius: 22,
             tooltip: 'Actualizar',
           ),
+        ],
+      ),
+    );
+  }
+}
+
+class _PaymentPendingCard extends StatelessWidget {
+  const _PaymentPendingCard({
+    required this.finalPrice,
+    required this.currency,
+    required this.isLoading,
+    required this.errorMessage,
+    required this.onPayTap,
+  });
+
+  final double? finalPrice;
+  final String currency;
+  final bool isLoading;
+  final String errorMessage;
+  final VoidCallback onPayTap;
+
+  @override
+  Widget build(BuildContext context) {
+    final hasPrice = finalPrice != null;
+
+    return Container(
+      decoration: BoxDecoration(
+        color: const Color(0xFF18231E),
+        borderRadius: BorderRadius.circular(20),
+        border: Border.all(
+          color: AppColors.appAccent.withValues(alpha: hasPrice ? 0.46 : 0.18),
+        ),
+        boxShadow: [
+          BoxShadow(
+            color: AppColors.appAccent.withValues(alpha: hasPrice ? 0.08 : 0),
+            blurRadius: 22,
+            offset: const Offset(0, 12),
+          ),
+        ],
+      ),
+      padding: const EdgeInsets.all(16),
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.stretch,
+        children: [
+          Row(
+            crossAxisAlignment: CrossAxisAlignment.start,
+            children: [
+              Container(
+                width: 44,
+                height: 44,
+                decoration: BoxDecoration(
+                  color: AppColors.appAccent.withValues(alpha: 0.16),
+                  borderRadius: BorderRadius.circular(16),
+                ),
+                child: Icon(
+                  hasPrice
+                      ? Icons.payments_rounded
+                      : Icons.hourglass_empty_rounded,
+                  color: AppColors.appAccent,
+                ),
+              ),
+              const SizedBox(width: 12),
+              Expanded(
+                child: Column(
+                  crossAxisAlignment: CrossAxisAlignment.start,
+                  children: [
+                    Text(
+                      hasPrice ? 'Pago pendiente' : 'Esperando precio final',
+                      style: const TextStyle(
+                        color: AppColors.appTextOnDark,
+                        fontWeight: FontWeight.w800,
+                        fontSize: 16,
+                      ),
+                    ),
+                    const SizedBox(height: 4),
+                    Text(
+                      hasPrice
+                          ? 'El mecanico envio el reporte final. Completa el pago para finalizar el servicio.'
+                          : 'El mecanico esta registrando el reporte del servicio. El precio final aparecera aqui automaticamente.',
+                      style: TextStyle(
+                        color: AppColors.appTextOnDarkMuted.withValues(
+                          alpha: 0.92,
+                        ),
+                        fontSize: 12,
+                        height: 1.35,
+                      ),
+                    ),
+                  ],
+                ),
+              ),
+            ],
+          ),
+          if (hasPrice) ...[
+            const SizedBox(height: 14),
+            Container(
+              padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 12),
+              decoration: BoxDecoration(
+                color: AppColors.appBgDeep.withValues(alpha: 0.62),
+                borderRadius: BorderRadius.circular(16),
+                border: Border.all(color: AppColors.appNavBorder),
+              ),
+              child: Row(
+                children: [
+                  const Text(
+                    'Total',
+                    style: TextStyle(
+                      color: AppColors.appTextOnDarkMuted,
+                      fontWeight: FontWeight.w700,
+                    ),
+                  ),
+                  const Spacer(),
+                  Text(
+                    '${finalPrice!.toStringAsFixed(2)} $currency',
+                    style: const TextStyle(
+                      color: AppColors.appTextOnDark,
+                      fontWeight: FontWeight.w900,
+                      fontSize: 16,
+                    ),
+                  ),
+                ],
+              ),
+            ),
+            if (errorMessage.isNotEmpty) ...[
+              const SizedBox(height: 10),
+              Text(
+                errorMessage,
+                style: const TextStyle(
+                  color: Color(0xFFFFB4B4),
+                  fontWeight: FontWeight.w700,
+                  fontSize: 12,
+                ),
+              ),
+            ],
+            const SizedBox(height: 14),
+            FilledButton.icon(
+              onPressed: isLoading ? null : onPayTap,
+              icon: isLoading
+                  ? const SizedBox(
+                      width: 16,
+                      height: 16,
+                      child: CircularProgressIndicator(strokeWidth: 2),
+                    )
+                  : const Icon(Icons.open_in_new_rounded),
+              label: Text(
+                isLoading ? 'Preparando pago...' : 'Completar pago',
+              ),
+            ),
+          ],
         ],
       ),
     );

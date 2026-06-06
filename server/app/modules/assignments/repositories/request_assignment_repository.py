@@ -30,6 +30,7 @@ class RequestAssignmentRepository:
                     AssignmentStatus.PENDING,
                     AssignmentStatus.OFFERED,
                     AssignmentStatus.ACCEPTED,
+                    AssignmentStatus.PAYMENT_PENDING,
                 )
             ),
         )
@@ -164,7 +165,12 @@ class RequestAssignmentRepository:
             .where(
                 RequestAssignment.incident_id == incident_id,
                 RequestAssignment.state == True,
-                RequestAssignment.status == AssignmentStatus.ACCEPTED,
+                RequestAssignment.status.in_(
+                    (
+                        AssignmentStatus.ACCEPTED,
+                        AssignmentStatus.PAYMENT_PENDING,
+                    )
+                ),
             )
             .order_by(RequestAssignment.created_date.desc())
         )
@@ -295,8 +301,9 @@ class RequestAssignmentRepository:
     def list_assignments_for_shop(self, shop_id: UUID) -> list[RequestAssignment]:
         status_order = case(
             (RequestAssignment.status == AssignmentStatus.ACCEPTED, 0),
-            (RequestAssignment.status == AssignmentStatus.COMPLETED, 1),
-            (RequestAssignment.status == AssignmentStatus.CANCELLED, 2),
+            (RequestAssignment.status == AssignmentStatus.PAYMENT_PENDING, 1),
+            (RequestAssignment.status == AssignmentStatus.COMPLETED, 2),
+            (RequestAssignment.status == AssignmentStatus.CANCELLED, 3),
             else_=3,
         )
         query = (
@@ -307,6 +314,7 @@ class RequestAssignmentRepository:
                 RequestAssignment.status.in_(
                     (
                         AssignmentStatus.ACCEPTED,
+                        AssignmentStatus.PAYMENT_PENDING,
                         AssignmentStatus.COMPLETED,
                         AssignmentStatus.CANCELLED,
                     )
@@ -417,6 +425,7 @@ class RequestAssignmentRepository:
                 ra.distance_km AS distance_km,
                 ra.delivery_price AS delivery_price,
                 ra.quoted_price AS quoted_price,
+                ra.final_price AS final_price,
                 ra.estimated_minutes AS estimated_minutes,
                 ra.expires_at AS expires_at,
                 i.description AS incident_description,
@@ -459,6 +468,7 @@ class RequestAssignmentRepository:
             "distance_km": float(row.distance_km) if row.distance_km is not None else None,
             "delivery_price": float(row.delivery_price) if row.delivery_price is not None else None,
             "quoted_price": float(row.quoted_price) if row.quoted_price is not None else None,
+            "final_price": float(row.final_price) if row.final_price is not None else None,
             "estimated_minutes": int(row.estimated_minutes) if row.estimated_minutes is not None else None,
             "expires_at": row.expires_at,
             "incident_description": row.incident_description,
@@ -480,6 +490,7 @@ class RequestAssignmentRepository:
                 ra.status AS assignment_status,
                 ra.distance_km AS distance_km,
                 ra.delivery_price AS delivery_price,
+                ra.final_price AS final_price,
                 ra.estimated_minutes AS estimated_minutes,
                 ra.created_date AS assignment_created_at,
                 ra.responded_at AS assignment_responded_at,
@@ -534,6 +545,7 @@ class RequestAssignmentRepository:
             "assignment_status": row.assignment_status,
             "distance_km": float(row.distance_km) if row.distance_km is not None else None,
             "delivery_price": float(row.delivery_price) if row.delivery_price is not None else None,
+            "final_price": float(row.final_price) if row.final_price is not None else None,
             "estimated_minutes": int(row.estimated_minutes) if row.estimated_minutes is not None else None,
             "assignment_created_at": row.assignment_created_at,
             "assignment_responded_at": row.assignment_responded_at,

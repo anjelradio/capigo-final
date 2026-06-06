@@ -1,0 +1,80 @@
+<!doctype html>
+<html lang="es">
+  <body style="margin:0; padding:0; background:#f4f7fb; font-family:Arial, Helvetica, sans-serif; color:#13212b;">
+    <div style="max-width:720px; margin:0 auto; padding:24px;">
+      <div style="background:#ffffff; border-radius:18px; overflow:hidden; box-shadow:0 12px 32px rgba(15, 33, 55, 0.08);">
+        <div style="background:linear-gradient(135deg, #0b3552, #1f6ea8); color:#ffffff; padding:28px 28px 24px;">
+          <div style="font-size:13px; font-weight:700; letter-spacing:1px; text-transform:uppercase; opacity:0.9;">CapiGO</div>
+          <h1 style="margin:8px 0 0; font-size:24px; line-height:1.25;">Tu servicio fue completado</h1>
+          <p style="margin:10px 0 0; font-size:14px; line-height:1.6; opacity:0.95;">
+            Hola {{ client_name }}, confirmamos que tu incidente <strong>#{{ incident_short_id }}</strong> fue
+            cerrado correctamente y el pago ya fue procesado.
+          </p>
+        </div>
+
+        <div style="padding:28px;">
+          <div style="background:#f8fbff; border:1px solid #d9e6f2; border-radius:14px; padding:18px 20px; margin-bottom:20px;">
+            <div style="font-size:12px; font-weight:700; color:#4f6b82; text-transform:uppercase; letter-spacing:0.6px; margin-bottom:10px;">Resumen</div>
+            <table role="presentation" cellpadding="0" cellspacing="0" width="100%" style="border-collapse:collapse; font-size:14px; line-height:1.6;">
+              <tr>
+                <td style="padding:6px 0; color:#5a6f82; width:34%;">Problema</td>
+                <td style="padding:6px 0; font-weight:700;">{{ problem_name }}</td>
+              </tr>
+              <tr>
+                <td style="padding:6px 0; color:#5a6f82;">Taller</td>
+                <td style="padding:6px 0; font-weight:700;">{{ shop_name }}</td>
+              </tr>
+              <tr>
+                <td style="padding:6px 0; color:#5a6f82;">Mecánico</td>
+                <td style="padding:6px 0; font-weight:700;">{{ mechanic_name }}</td>
+              </tr>
+              <tr>
+                <td style="padding:6px 0; color:#5a6f82;">Vehículo</td>
+                <td style="padding:6px 0; font-weight:700;">{{ vehicle_label }}</td>
+              </tr>
+            </table>
+          </div>
+
+          <div style="background:#ffffff; border:1px solid #e3edf5; border-radius:14px; padding:18px 20px; margin-bottom:20px;">
+            <div style="font-size:12px; font-weight:700; color:#4f6b82; text-transform:uppercase; letter-spacing:0.6px; margin-bottom:10px;">Pago</div>
+            <table role="presentation" cellpadding="0" cellspacing="0" width="100%" style="border-collapse:collapse; font-size:14px; line-height:1.6;">
+              <tr>
+                <td style="padding:6px 0; color:#5a6f82; width:48%;">Costo de traslado</td>
+                <td style="padding:6px 0; text-align:right; font-weight:700;">{{ delivery_price }}</td>
+              </tr>
+              <tr>
+                <td style="padding:6px 0; color:#5a6f82;">Costo mano de obra</td>
+                <td style="padding:6px 0; text-align:right; font-weight:700;">{{ final_price }}</td>
+              </tr>
+              <tr>
+                <td style="padding:10px 0 0; color:#13212b; font-size:15px; font-weight:800; border-top:1px solid #e3edf5;">Total pagado</td>
+                <td style="padding:10px 0 0; text-align:right; font-size:15px; font-weight:800; border-top:1px solid #e3edf5;">{{ payment_total }}</td>
+              </tr>
+              <tr>
+                <td style="padding:6px 0; color:#5a6f82;">Fecha de pago</td>
+                <td style="padding:6px 0; text-align:right;">{{ payment_paid_at }}</td>
+              </tr>
+            </table>
+          </div>
+
+          <div style="background:#f8fbff; border:1px solid #d9e6f2; border-radius:14px; padding:18px 20px; margin-bottom:20px;">
+            <div style="font-size:12px; font-weight:700; color:#4f6b82; text-transform:uppercase; letter-spacing:0.6px; margin-bottom:10px;">Detalle del incidente</div>
+            <p style="margin:0; font-size:14px; line-height:1.7; white-space:pre-line;">{{ incident_description }}</p>
+            <p style="margin:12px 0 0; font-size:13px; line-height:1.6; color:#5a6f82;">
+              Dirección: {{ incident_address }}
+            </p>
+          </div>
+
+          <div style="font-size:14px; line-height:1.7; color:#3c4f60; margin-bottom:18px;">
+            Adjuntamos el informe completo y el comprobante de pago en PDF con el detalle del servicio.
+            Si necesitas ayuda, responde este correo o escríbenos a <strong>{{ support_email }}</strong>.
+          </div>
+
+          <div style="padding:14px 16px; background:#eef7ff; border-radius:12px; color:#265a82; font-size:13px; line-height:1.6;">
+            Gracias por usar CapiGO. Tu seguridad y transparencia son nuestra prioridad.
+          </div>
+        </div>
+      </div>
+    </div>
+  </body>
+</html>

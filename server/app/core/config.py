@@ -46,6 +46,10 @@ class Settings(BaseSettings):
         default=5,
         env="ASSIGNMENT_ESTIMATED_MIN_FLOOR_MINUTES",
     )
+    STRIPE_SECRET_KEY: str = Field(default="", env="STRIPE_SECRET_KEY")
+    STRIPE_CURRENCY: str = Field(default="usd", env="STRIPE_CURRENCY")
+    STRIPE_SUCCESS_URL: str = Field(default="", env="STRIPE_SUCCESS_URL")
+    STRIPE_CANCEL_URL: str = Field(default="", env="STRIPE_CANCEL_URL")
     SQL_ECHO: bool = Field(default=False, env="SQL_ECHO")
     CORS_ORIGINS: list[str] = Field(
         default_factory=lambda: [

@@ -16,6 +16,7 @@ class IncidentStatus(str, Enum):
     ASSIGNED = "assigned"
     ON_THE_WAY = "on_the_way"
     ARRIVED = "arrived"
+    PAYMENT_PENDING = "payment_pending"
     COMPLETED = "completed"
     CANCELLED = "cancelled"
     FAILED = "failed"
@@ -47,6 +48,7 @@ class Incident(UUIDBaseModel, table=True):
         default=None,
         sa_column=Column(Numeric(10, 3), nullable=True),
     )
+    client_request_id: str | None = Field(default=None, index=True, max_length=120)
 
     user_id: UUID = Field(foreign_key="user.id", index=True)
     vehicle_id: UUID = Field(foreign_key="vehicle.id", index=True)

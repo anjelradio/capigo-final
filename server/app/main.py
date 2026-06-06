@@ -18,6 +18,7 @@ from app.modules.realtime.models import DevicePushToken, IncidentLiveState, Inci
 from app.modules.realtime.services import ShopOfferNotificationService
 from app.modules.repair_shop.router import router as repair_shop_router
 from app.modules.user.router import router as user_router
+from app.modules.wallet.payment_router import router as payments_router
 from app.modules.wallet.router import router as wallet_router
 
 load_dotenv()
@@ -75,3 +76,4 @@ app.include_router(incidents_router, prefix="/api")
 app.include_router(assignments_router, prefix="/api")
 app.include_router(realtime_router, prefix="/api")
 app.include_router(wallet_router, prefix="/api")
+app.include_router(payments_router, prefix="/api")

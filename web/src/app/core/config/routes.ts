@@ -6,6 +6,7 @@ export const APP_ROUTES = {
   APP_HOME_ADMIN: '/app/admin',
   APP_ADMIN_REPAIR_SHOPS: '/app/repair-shops',
   APP_HOME_OWNER: '/app/owner',
+  APP_OWNER_HOME: '/app/owner/home',
   APP_OWNER_REQUESTS: '/app/owner/requests',
   APP_OWNER_BALANCE: '/app/owner/balance',
   APP_OWNER_ASSIGNMENTS: '/app/owner/assignments',

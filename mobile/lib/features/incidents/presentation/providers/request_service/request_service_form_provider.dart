@@ -1,14 +1,20 @@
 import 'dart:async';
 import 'dart:io';
+import 'dart:math';
 
+import 'package:connectivity_plus/connectivity_plus.dart';
 import 'package:flutter_riverpod/legacy.dart';
 import 'package:just_audio/just_audio.dart';
 import 'package:mobile/features/auth/data/errors/auth_errors.dart';
+import 'package:mobile/features/incidents/data/offline/offline.dart';
+import 'package:mobile/features/incidents/presentation/providers/request_service/incident_offline_queue_provider.dart';
 import 'package:mobile/features/incidents/presentation/providers/request_service/request_service_repository_provider.dart';
 import 'package:mobile/features/shared/shared.dart';
 import 'package:record/record.dart';
 
 enum IncidentInputMode { text, audio }
+
+enum RequestServiceSubmissionOutcome { sent, queued, failed }
 
 final requestServiceFormProvider =
     StateNotifierProvider.autoDispose<
@@ -16,6 +22,7 @@ final requestServiceFormProvider =
       RequestServiceFormState
     >((ref) {
       final incidentRepository = ref.watch(incidentRepositoryProvider);
+      final offlineQueueService = ref.watch(incidentOfflineQueueServiceProvider);
 
       Future<void> submitIncident({
         required String vehicleId,
@@ -24,6 +31,7 @@ final requestServiceFormProvider =
         required double latitude,
         required double longitude,
         required List<String> imagePaths,
+        required String clientRequestId,
       }) {
         return incidentRepository.createIncident(
           vehicleId: vehicleId,
@@ -32,6 +40,7 @@ final requestServiceFormProvider =
           latitude: latitude,
           longitude: longitude,
           imagePaths: imagePaths,
+          clientRequestId: clientRequestId,
         );
       }
 
@@ -39,6 +48,7 @@ final requestServiceFormProvider =
         cameraGalleryService: CameraGalleryServiceImpl(),
         audioRecorder: AudioRecorder(),
         audioPlayer: AudioPlayer(),
+        offlineQueueService: offlineQueueService,
         submitIncidentCallback: submitIncident,
       );
     });
@@ -49,11 +59,13 @@ class RequestServiceFormNotifier
     required CameraGalleryService cameraGalleryService,
     required AudioRecorder audioRecorder,
     required AudioPlayer audioPlayer,
+    required IncidentOfflineQueueService offlineQueueService,
     required this.submitIncidentCallback,
   }) : _cameraGalleryService = cameraGalleryService,
-       _audioRecorder = audioRecorder,
-       _audioPlayer = audioPlayer,
-       super(RequestServiceFormState()) {
+        _audioRecorder = audioRecorder,
+        _audioPlayer = audioPlayer,
+        _offlineQueueService = offlineQueueService,
+        super(RequestServiceFormState()) {
     _playerStateSubscription = _audioPlayer.playerStateStream.listen((event) {
       final isPlaying = event.playing;
       if (state.isPlayingAudio != isPlaying) {
@@ -65,6 +77,7 @@ class RequestServiceFormNotifier
   final CameraGalleryService _cameraGalleryService;
   final AudioRecorder _audioRecorder;
   final AudioPlayer _audioPlayer;
+  final IncidentOfflineQueueService _offlineQueueService;
   StreamSubscription<PlayerState>? _playerStateSubscription;
   final Future<void> Function({
     required String vehicleId,
@@ -73,6 +86,7 @@ class RequestServiceFormNotifier
     required double latitude,
     required double longitude,
     required List<String> imagePaths,
+    required String clientRequestId,
   })
   submitIncidentCallback;
 
@@ -239,7 +253,7 @@ class RequestServiceFormNotifier
     );
   }
 
-  Future<bool> submitIncident({
+  Future<RequestServiceSubmissionOutcome> submitIncident({
     required double latitude,
     required double longitude,
   }) async {
@@ -253,7 +267,7 @@ class RequestServiceFormNotifier
           'Selecciona vehiculo, agrega foto y completa el incidente en texto o audio.',
         ],
       );
-      return false;
+      return RequestServiceSubmissionOutcome.failed;
     }
 
     final descriptionToSend = state.inputMode == IncidentInputMode.text
@@ -262,8 +276,36 @@ class RequestServiceFormNotifier
     final audioToSend = state.inputMode == IncidentInputMode.audio
         ? audioPath
         : null;
+    final clientRequestId = _generateClientRequestId();
 
     state = state.copyWith(isPosting: true, errorMessages: const []);
+
+    final connectivity = await Connectivity().checkConnectivity();
+    if (_isOffline(connectivity)) {
+      try {
+        await _offlineQueueService.enqueueIncident(
+          vehicleId: vehicleId,
+          description: descriptionToSend,
+          audioPath: audioToSend,
+          latitude: latitude,
+          longitude: longitude,
+          imagePaths: state.imagePaths,
+          clientRequestId: clientRequestId,
+        );
+
+        if (!mounted) return RequestServiceSubmissionOutcome.queued;
+        await _audioPlayer.stop();
+        state = RequestServiceFormState();
+        return RequestServiceSubmissionOutcome.queued;
+      } catch (error) {
+        if (!mounted) return RequestServiceSubmissionOutcome.failed;
+        final message = error is CustomError
+            ? error.messages
+            : const ['No fue posible guardar la solicitud sin conexion.'];
+        state = state.copyWith(isPosting: false, errorMessages: message);
+        return RequestServiceSubmissionOutcome.failed;
+      }
+    }
 
     try {
       await submitIncidentCallback(
@@ -273,22 +315,53 @@ class RequestServiceFormNotifier
         latitude: latitude,
         longitude: longitude,
         imagePaths: state.imagePaths,
+        clientRequestId: clientRequestId,
       );
 
-      if (!mounted) return false;
+      if (!mounted) return RequestServiceSubmissionOutcome.sent;
+      await _audioPlayer.stop();
       state = RequestServiceFormState();
-      return true;
+      return RequestServiceSubmissionOutcome.sent;
     } on CustomError catch (error) {
-      if (!mounted) return false;
+      final isConnectionIssue = error.messages.any(
+        (message) => message.toLowerCase().contains('conexion'),
+      );
+      if (isConnectionIssue) {
+        try {
+          await _offlineQueueService.enqueueIncident(
+            vehicleId: vehicleId,
+            description: descriptionToSend,
+            audioPath: audioToSend,
+            latitude: latitude,
+            longitude: longitude,
+            imagePaths: state.imagePaths,
+            clientRequestId: clientRequestId,
+          );
+
+          if (!mounted) return RequestServiceSubmissionOutcome.queued;
+          await _audioPlayer.stop();
+          state = RequestServiceFormState();
+          return RequestServiceSubmissionOutcome.queued;
+        } catch (queueError) {
+          if (!mounted) return RequestServiceSubmissionOutcome.failed;
+          final message = queueError is CustomError
+              ? queueError.messages
+              : const ['No fue posible guardar la solicitud sin conexion.'];
+          state = state.copyWith(isPosting: false, errorMessages: message);
+          return RequestServiceSubmissionOutcome.failed;
+        }
+      }
+
+      if (!mounted) return RequestServiceSubmissionOutcome.failed;
       state = state.copyWith(isPosting: false, errorMessages: error.messages);
-      return false;
+      return RequestServiceSubmissionOutcome.failed;
     } catch (_) {
-      if (!mounted) return false;
+      if (!mounted) return RequestServiceSubmissionOutcome.failed;
       state = state.copyWith(
         isPosting: false,
         errorMessages: const ['No fue posible enviar la solicitud de ayuda.'],
       );
-      return false;
+      return RequestServiceSubmissionOutcome.failed;
     }
   }
 
@@ -306,6 +379,16 @@ class RequestServiceFormNotifier
   String _buildRecordingPath() {
     final timestamp = DateTime.now().millisecondsSinceEpoch;
     return '${Directory.systemTemp.path}/incident_audio_$timestamp.m4a';
+  }
+
+  String _generateClientRequestId() {
+    final timestamp = DateTime.now().toUtc().microsecondsSinceEpoch.toRadixString(36);
+    final randomPart = Random().nextInt(1 << 32).toRadixString(36);
+    return 'incident_$timestamp$randomPart';
+  }
+
+  bool _isOffline(List<ConnectivityResult> results) {
+    return results.isEmpty || results.contains(ConnectivityResult.none);
   }
 
   @override

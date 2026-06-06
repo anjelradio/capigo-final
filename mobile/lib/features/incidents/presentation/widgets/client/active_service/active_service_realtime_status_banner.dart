@@ -76,6 +76,7 @@ class ActiveServiceRealtimeStatusBanner extends StatelessWidget {
       'assigned': 'Asignado',
       'on_the_way': 'Mecanico en camino',
       'arrived': 'Mecanico llego',
+      'payment_pending': 'Pago pendiente',
       'completed': 'Servicio completado',
       'cancelled': 'Servicio cancelado',
       'failed': 'Servicio fallido',
@@ -130,6 +131,7 @@ class _StatusLeadingIcon extends StatelessWidget {
     return status == 'assigned' ||
         status == 'on_the_way' ||
         status == 'arrived' ||
+        status == 'payment_pending' ||
         status == 'completed';
   }
 }

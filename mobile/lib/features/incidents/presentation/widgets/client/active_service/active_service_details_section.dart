@@ -51,6 +51,22 @@ class ActiveServiceDetailsSection extends StatelessWidget {
                   value: '${detail.assignment!.estimatedMinutes} min',
                 ),
               ],
+              if (detail.assignment?.quotedPrice != null) ...[
+                const SizedBox(height: 6),
+                _InfoValueRow(
+                  label: 'Oferta inicial',
+                  value:
+                      'Bs ${detail.assignment!.quotedPrice!.toStringAsFixed(2)}',
+                ),
+              ],
+              if (detail.assignment?.finalPrice != null) ...[
+                const SizedBox(height: 6),
+                _InfoValueRow(
+                  label: 'Precio final',
+                  value:
+                      'Bs ${detail.assignment!.finalPrice!.toStringAsFixed(2)}',
+                ),
+              ],
             ],
           ),
         ),

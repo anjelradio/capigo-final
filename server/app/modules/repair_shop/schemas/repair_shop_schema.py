@@ -125,6 +125,42 @@ class AdminRecentServicesResponse(SQLModel):
     services: list[AdminRecentServiceRead]
 
 
+class RepairShopDashboardKpisRead(SQLModel):
+    requests_received: int
+    accepted_services: int
+    completed_services: int
+    cancelled_cases: int
+    acceptance_rate: float
+    cancellation_rate: float
+    revenue_total: float
+    average_resolution_minutes: float
+    average_ticket_value: float
+    top_mechanic_name: str | None = None
+    top_mechanic_completed: int = 0
+
+
+class RepairShopDashboardBreakdownRead(SQLModel):
+    label: str
+    count: int
+    percentage: float
+
+
+class RepairShopDashboardZoneRead(SQLModel):
+    label: str
+    count: int
+    percentage: float
+    latitude: float | None = None
+    longitude: float | None = None
+
+
+class RepairShopDashboardRead(SQLModel):
+    period_days: int
+    generated_at: datetime
+    kpis: RepairShopDashboardKpisRead
+    services_by_type: list[RepairShopDashboardBreakdownRead]
+    zones_by_services: list[RepairShopDashboardZoneRead]
+
+
 class ShopServicesAssignRequest(SQLModel):
     service_ids: list[UUID]
 

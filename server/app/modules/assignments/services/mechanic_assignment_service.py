@@ -9,6 +9,10 @@ from fastapi import HTTPException
 from app.core.config import settings
 from app.modules.assignments.models import AssignmentStatus
 from app.modules.incidents.models import IncidentServiceReport, IncidentStatus
+from app.modules.incidents.services.incident_state_transition_service import (
+    IncidentStateTransitionService,
+)
+from app.modules.incidents.services.incident_workflow_service import IncidentWorkflowService
 from app.modules.realtime.services import PushNotificationService
 from app.modules.user.models import UserRole
 from app.modules.wallet.models import Transactions, TransactionStatus, TransactionType
@@ -24,12 +28,6 @@ class MechanicAssignmentService(AssignmentBaseService):
         IncidentStatus.ON_THE_WAY,
         IncidentStatus.ARRIVED,
     )
-
-    _STATUS_FLOW: dict[IncidentStatus, tuple[IncidentStatus, ...]] = {
-        IncidentStatus.ASSIGNED: (IncidentStatus.ON_THE_WAY, IncidentStatus.CANCELLED),
-        IncidentStatus.ON_THE_WAY: (IncidentStatus.ARRIVED, IncidentStatus.CANCELLED),
-        IncidentStatus.ARRIVED: (IncidentStatus.COMPLETED, IncidentStatus.CANCELLED),
-    }
 
     def get_my_active_assignment(self, *, user_id: UUID) -> dict:
         mechanic_link = self._resolve_mechanic_link(user_id)
@@ -114,9 +112,12 @@ class MechanicAssignmentService(AssignmentBaseService):
         if next_status == IncidentStatus.COMPLETED:
             raise HTTPException(
                 status_code=400,
-                detail="Para finalizar el servicio debes enviar reporte en el endpoint /complete",
+                detail="Para finalizar el trabajo debes enviar reporte en el endpoint /submit-final-report",
             )
-        self._ensure_valid_incident_transition(current=incident.status, target=next_status)
+        IncidentStateTransitionService.ensure_mechanic_can_transition(
+            current=incident.status,
+            target=next_status,
+        )
 
         incident.status = next_status
         self.db.add(incident)
@@ -136,33 +137,11 @@ class MechanicAssignmentService(AssignmentBaseService):
         self.db.commit()
 
         detail = self._status_detail(next_status)
-        self._emit_incident_realtime_event(
-            incident_id=incident.id,
-            event_type="mechanic.status.updated",
-            payload={
-                "assignment_id": assignment.id,
-                "mechanic_id": mechanic_link.id,
-                "status": next_status.value,
-                "description": detail,
-            },
-            status=next_status,
-            assignment_id=assignment.id,
-            repair_shop_id=assignment.repair_shop_id,
+        IncidentWorkflowService(self.db).mechanic_status_updated(
+            incident=incident,
+            assignment=assignment,
             mechanic_id=mechanic_link.id,
-        )
-        self._emit_incident_realtime_event(
-            incident_id=incident.id,
-            event_type="incident.status.changed",
-            payload={
-                "status": next_status.value,
-                "assignment_id": assignment.id,
-                "mechanic_id": mechanic_link.id,
-                "description": detail,
-            },
-            status=next_status,
-            assignment_id=assignment.id,
-            repair_shop_id=assignment.repair_shop_id,
-            mechanic_id=mechanic_link.id,
+            detail=detail,
         )
 
         if next_status in (
@@ -234,24 +213,13 @@ class MechanicAssignmentService(AssignmentBaseService):
             raise HTTPException(status_code=409, detail="El incidente no acepta ubicacion en este estado")
 
         location_time = recorded_at or datetime.now(UTC)
-        self._emit_incident_realtime_event(
-            incident_id=incident.id,
-            event_type="mechanic.location.updated",
-            payload={
-                "assignment_id": assignment.id,
-                "mechanic_id": mechanic_link.id,
-                "status": incident.status.value,
-                "mechanic_latitude": latitude,
-                "mechanic_longitude": longitude,
-                "mechanic_location_updated_at": location_time,
-            },
-            status=incident.status,
-            assignment_id=assignment.id,
-            repair_shop_id=assignment.repair_shop_id,
+        IncidentWorkflowService(self.db).mechanic_location_updated(
+            incident=incident,
+            assignment=assignment,
             mechanic_id=mechanic_link.id,
-            mechanic_latitude=latitude,
-            mechanic_longitude=longitude,
-            mechanic_location_updated_at=location_time,
+            latitude=latitude,
+            longitude=longitude,
+            location_time=location_time,
         )
 
         return {
@@ -269,6 +237,21 @@ class MechanicAssignmentService(AssignmentBaseService):
         assignment_id: UUID,
         description: str,
         labor_price: float,
+    ) -> dict:
+        return self.submit_final_report(
+            user_id=user_id,
+            assignment_id=assignment_id,
+            description=description,
+            final_price=labor_price,
+        )
+
+    def submit_final_report(
+        self,
+        *,
+        user_id: UUID,
+        assignment_id: UUID,
+        description: str,
+        final_price: float,
     ) -> dict:
         mechanic_link = self._resolve_mechanic_link(user_id)
         assignment = self.request_assignment.get_by_id_and_mechanic(
@@ -296,14 +279,14 @@ class MechanicAssignmentService(AssignmentBaseService):
                 detail="Debes registrar una descripcion valida del trabajo realizado",
             )
 
-        labor_price_decimal = Decimal(str(labor_price)).quantize(
+        final_price_decimal = Decimal(str(final_price)).quantize(
             Decimal("0.01"),
             rounding=ROUND_HALF_UP,
         )
-        if labor_price_decimal < Decimal("0.00"):
+        if final_price_decimal <= Decimal("0.00"):
             raise HTTPException(
                 status_code=400,
-                detail="El monto cobrado no puede ser negativo",
+                detail="El precio final debe ser mayor a cero",
             )
 
         existing_report = self.incident_service_report.get_by_incident_id(incident.id)
@@ -316,84 +299,37 @@ class MechanicAssignmentService(AssignmentBaseService):
         report = IncidentServiceReport(
             incident_id=incident.id,
             description=normalized_description,
-            labor_price=labor_price_decimal,
+            labor_price=final_price_decimal,
         )
         self.incident_service_report.create(report)
 
-        incident.status = IncidentStatus.COMPLETED
+        incident.status = IncidentStatus.PAYMENT_PENDING
         self.db.add(incident)
 
-        assignment.status = AssignmentStatus.COMPLETED
-        assignment.responded_at = datetime.now(UTC)
+        assignment.status = AssignmentStatus.PAYMENT_PENDING
+        assignment.final_price = final_price_decimal
         self.db.add(assignment)
 
         mechanic_link.is_available = True
         self.db.add(mechanic_link)
 
-        wallet_debit_amount = self._resolve_delivery_charge(incident, assignment)
-        wallet_snapshot = self._debit_wallet_for_completed_service(
-            assignment_id=assignment.id,
-            repair_shop_id=assignment.repair_shop_id,
-            debit_amount=wallet_debit_amount,
-        )
-
         self.db.commit()
         self.db.refresh(report)
 
-        detail = self._status_detail(IncidentStatus.COMPLETED)
-        self._emit_incident_realtime_event(
-            incident_id=incident.id,
-            event_type="mechanic.status.updated",
-            payload={
-                "assignment_id": assignment.id,
-                "mechanic_id": mechanic_link.id,
-                "status": IncidentStatus.COMPLETED.value,
-                "description": detail,
-            },
-            status=IncidentStatus.COMPLETED,
-            assignment_id=assignment.id,
-            repair_shop_id=assignment.repair_shop_id,
+        detail = self._status_detail(IncidentStatus.PAYMENT_PENDING)
+        IncidentWorkflowService(self.db).final_report_submitted(
+            incident=incident,
+            assignment=assignment,
             mechanic_id=mechanic_link.id,
-        )
-        self._emit_incident_realtime_event(
-            incident_id=incident.id,
-            event_type="incident.status.changed",
-            payload={
-                "status": IncidentStatus.COMPLETED.value,
-                "assignment_id": assignment.id,
-                "mechanic_id": mechanic_link.id,
-                "description": detail,
-                "review_requested": True,
-            },
-            status=IncidentStatus.COMPLETED,
-            assignment_id=assignment.id,
-            repair_shop_id=assignment.repair_shop_id,
-            mechanic_id=mechanic_link.id,
-        )
-        self._emit_incident_realtime_event(
-            incident_id=incident.id,
-            event_type="incident.report.created",
-            payload={
-                "report_id": report.id,
-                "assignment_id": assignment.id,
-                "mechanic_id": mechanic_link.id,
-                "description": report.description,
-                "labor_price": float(report.labor_price),
-                "delivery_price": float(wallet_debit_amount),
-                "wallet_balance_before": float(wallet_snapshot["balance_before"]),
-                "wallet_balance_after": float(wallet_snapshot["balance_after"]),
-            },
-            status=IncidentStatus.COMPLETED,
-            assignment_id=assignment.id,
-            repair_shop_id=assignment.repair_shop_id,
-            mechanic_id=mechanic_link.id,
+            report=report,
+            detail=detail,
         )
 
         self._send_client_status_push(
             client_user_id=incident.user_id,
             incident_id=incident.id,
             assignment_id=assignment.id,
-            status=IncidentStatus.COMPLETED.value,
+            status=IncidentStatus.PAYMENT_PENDING.value,
         )
 
         return {
@@ -401,7 +337,7 @@ class MechanicAssignmentService(AssignmentBaseService):
             "incident_id": incident.id,
             "incident_status": incident.status.value,
             "assignment_status": assignment.status.value,
-            "detail": "Servicio completado y reporte final registrado",
+            "detail": "Reporte final registrado, pago pendiente",
         }
 
     def _resolve_mechanic_link(self, user_id: UUID):
@@ -487,19 +423,6 @@ class MechanicAssignmentService(AssignmentBaseService):
         except ValueError:
             raise HTTPException(status_code=400, detail="Estado de incidente invalido")
 
-    def _ensure_valid_incident_transition(
-        self,
-        *,
-        current: IncidentStatus,
-        target: IncidentStatus,
-    ) -> None:
-        allowed_targets = self._STATUS_FLOW.get(current, ())
-        if target not in allowed_targets:
-            raise HTTPException(
-                status_code=409,
-                detail=f"No se puede cambiar de {current.value} a {target.value}",
-            )
-
     def _status_detail(self, status: IncidentStatus) -> str:
         if status == IncidentStatus.ON_THE_WAY:
             return "Mecanico en camino"
@@ -507,6 +430,8 @@ class MechanicAssignmentService(AssignmentBaseService):
             return "Mecanico llego al incidente"
         if status == IncidentStatus.COMPLETED:
             return "Incidente completado por el mecanico"
+        if status == IncidentStatus.PAYMENT_PENDING:
+            return "Reporte final enviado, pago pendiente"
         if status == IncidentStatus.CANCELLED:
             return "Incidente cancelado por el mecanico"
         return "Estado actualizado por el mecanico"
@@ -559,46 +484,3 @@ class MechanicAssignmentService(AssignmentBaseService):
             "balance_before": balance_before,
             "balance_after": balance_after,
         }
-
-    def _emit_incident_realtime_event(
-        self,
-        *,
-        incident_id: UUID,
-        event_type: str,
-        payload: dict,
-        status: str | None = None,
-        assignment_id: UUID | None = None,
-        repair_shop_id: UUID | None = None,
-        mechanic_id: UUID | None = None,
-        mechanic_latitude: float | None = None,
-        mechanic_longitude: float | None = None,
-        mechanic_location_updated_at: datetime | None = None,
-    ) -> None:
-        try:
-            from app.modules.realtime.services.incident_realtime_service import (
-                IncidentRealtimeService,
-            )
-
-            IncidentRealtimeService(self.db).publish_incident_event_sync(
-                incident_id=incident_id,
-                event_type=event_type,
-                payload=payload,
-                status=status,
-                assignment_id=assignment_id,
-                repair_shop_id=repair_shop_id,
-                mechanic_id=mechanic_id,
-                mechanic_latitude=mechanic_latitude,
-                mechanic_longitude=mechanic_longitude,
-                mechanic_location_updated_at=mechanic_location_updated_at,
-            )
-        except Exception as error:
-            try:
-                self.db.rollback()
-            except Exception:
-                pass
-            logger.warning(
-                "No se pudo emitir evento realtime incident_id=%s type=%s error=%s",
-                incident_id,
-                event_type,
-                error,
-            )

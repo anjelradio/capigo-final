@@ -11,6 +11,7 @@ from app.core.config import settings
 from app.core.db import engine
 from app.modules.incidents.models import Incident, IncidentStatus, Problem
 from app.modules.incidents.repositories import EvidenceRepository, IncidentRepository
+from app.modules.incidents.services.incident_workflow_service import IncidentWorkflowService
 
 logger = logging.getLogger(__name__)
 
@@ -25,6 +26,7 @@ class IncidentClassificationService:
         self.db = db
         self.incident = IncidentRepository(db)
         self.evidence = EvidenceRepository(db)
+        self.workflow = IncidentWorkflowService(db)
 
     @classmethod
     def classify_incident_background(
@@ -80,29 +82,13 @@ class IncidentClassificationService:
         self.db.add(incident)
         self.db.commit()
         self.db.refresh(incident)
-        self._emit_incident_realtime_event(
-            incident_id=incident.id,
-            event_type="incident.status.changed",
-            payload={
-                "status": incident.status,
-                "description": "Clasificando incidente con IA",
-            },
-            status=incident.status,
-        )
+        self.workflow.incident_classifying(incident=incident)
 
     def _mark_incident_failed(self, incident: Incident) -> None:
         incident.status = IncidentStatus.FAILED
         self.db.add(incident)
         self.db.commit()
-        self._emit_incident_realtime_event(
-            incident_id=incident.id,
-            event_type="incident.status.changed",
-            payload={
-                "status": incident.status,
-                "description": "No se pudo clasificar el incidente",
-            },
-            status=incident.status,
-        )
+        self.workflow.incident_classification_failed(incident=incident)
 
     def _classify_with_gemini(self, incident: Incident, audio_payload: dict | None = None) -> dict:
         if not settings.GEMINI_API_KEY:
@@ -252,17 +238,7 @@ class IncidentClassificationService:
         self.db.commit()
         self.db.refresh(incident)
 
-        self._emit_incident_realtime_event(
-            incident_id=incident.id,
-            event_type="incident.status.changed",
-            payload={
-                "status": incident.status,
-                "problem_id": incident.problem_id,
-                "confidence": incident.ai_confidence,
-                "description": "Clasificacion de incidente finalizada",
-            },
-            status=incident.status,
-        )
+        self.workflow.incident_classified(incident=incident)
 
         return {
             "incident_id": incident.id,
@@ -271,37 +247,6 @@ class IncidentClassificationService:
             "ai_confidence": incident.ai_confidence,
             "accepted_threshold": confidence >= self.MIN_CONFIDENCE,
         }
-
-    def _emit_incident_realtime_event(
-        self,
-        *,
-        incident_id: UUID,
-        event_type: str,
-        payload: dict,
-        status: str | None = None,
-    ) -> None:
-        try:
-            from app.modules.realtime.services.incident_realtime_service import (
-                IncidentRealtimeService,
-            )
-
-            IncidentRealtimeService(self.db).publish_incident_event_sync(
-                incident_id=incident_id,
-                event_type=event_type,
-                payload=payload,
-                status=status,
-            )
-        except Exception as error:
-            try:
-                self.db.rollback()
-            except Exception:
-                pass
-            logger.warning(
-                "No se pudo emitir evento realtime incident_id=%s type=%s error=%s",
-                incident_id,
-                event_type,
-                error,
-            )
 
     def _get_active_problems_catalog(self) -> list[Problem]:
         query = (

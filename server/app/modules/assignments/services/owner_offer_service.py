@@ -5,6 +5,7 @@ from uuid import UUID
 from fastapi import HTTPException
 
 from app.modules.assignments.models import AssignmentStatus
+from app.modules.incidents.services.incident_workflow_service import IncidentWorkflowService
 from app.modules.user.models import UserRole
 
 from .base_service import AssignmentBaseService
@@ -180,16 +181,7 @@ class OwnerOfferService(AssignmentBaseService):
         self.db.add(assignment)
         self.db.commit()
 
-        self._emit_incident_realtime_event(
-            incident_id=assignment.incident_id,
-            event_type="assignment.offer.rejected",
-            payload={
-                "assignment_id": assignment.id,
-                "description": "El taller rechazo la oferta",
-            },
-            assignment_id=assignment.id,
-            repair_shop_id=assignment.repair_shop_id,
-        )
+        IncidentWorkflowService(self.db).shop_offer_rejected(assignment=assignment)
 
         return {
             "assignment_id": assignment.id,
@@ -233,30 +225,11 @@ class OwnerOfferService(AssignmentBaseService):
         shop = self.repair_shop.get_by_id(assignment.repair_shop_id)
         mechanic_name = self.request_assignment.get_mechanic_full_name(assignment.mechanic_id)
 
-        self._emit_incident_realtime_event(
-            incident_id=assignment.incident_id,
-            event_type="assignment.offer.submitted",
-            payload={
-                "assignment_id": assignment.id,
-                "incident_id": assignment.incident_id,
-                "repair_shop_id": assignment.repair_shop_id,
-                "repair_shop_name": shop.name if shop else None,
-                "quoted_price": float(assignment.quoted_price) if assignment.quoted_price is not None else None,
-                "delivery_price": float(assignment.delivery_price)
-                if assignment.delivery_price is not None
-                else None,
-                "estimated_minutes": assignment.estimated_minutes,
-                "distance_km": float(assignment.distance_km)
-                if assignment.distance_km is not None
-                else None,
-                "mechanic_id": assignment.mechanic_id,
-                "mechanic_name": mechanic_name,
-                "description": "El taller envio una oferta para tu incidente",
-            },
-            status=incident.status if incident else None,
-            assignment_id=assignment.id,
-            repair_shop_id=assignment.repair_shop_id,
-            mechanic_id=assignment.mechanic_id,
+        IncidentWorkflowService(self.db).owner_offer_submitted(
+            incident=incident,
+            assignment=assignment,
+            repair_shop_name=shop.name if shop else None,
+            mechanic_name=mechanic_name,
         )
 
         if incident:
@@ -322,43 +295,6 @@ class OwnerOfferService(AssignmentBaseService):
             raise HTTPException(status_code=404, detail="Taller no encontrado")
 
         return shop.id
-
-    def _emit_incident_realtime_event(
-        self,
-        *,
-        incident_id: UUID,
-        event_type: str,
-        payload: dict,
-        status: str | None = None,
-        assignment_id: UUID | None = None,
-        repair_shop_id: UUID | None = None,
-        mechanic_id: UUID | None = None,
-    ) -> None:
-        try:
-            from app.modules.realtime.services.incident_realtime_service import (
-                IncidentRealtimeService,
-            )
-
-            IncidentRealtimeService(self.db).publish_incident_event_sync(
-                incident_id=incident_id,
-                event_type=event_type,
-                payload=payload,
-                status=status,
-                assignment_id=assignment_id,
-                repair_shop_id=repair_shop_id,
-                mechanic_id=mechanic_id,
-            )
-        except Exception as error:
-            try:
-                self.db.rollback()
-            except Exception:
-                pass
-            logger.warning(
-                "No se pudo emitir evento realtime incident_id=%s type=%s error=%s",
-                incident_id,
-                event_type,
-                error,
-            )
 
     def _notify_client_offer_received(
         self,

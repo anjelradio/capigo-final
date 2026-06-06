@@ -7,6 +7,7 @@ from uuid import UUID
 from app.core.config import settings
 from app.modules.assignments.models import AssignmentStatus, RequestAssignment
 from app.modules.incidents.models import IncidentStatus
+from app.modules.incidents.services.incident_workflow_service import IncidentWorkflowService
 from app.modules.realtime.services import ShopOfferNotificationService
 
 from .base_service import AssignmentBaseService
@@ -122,15 +123,9 @@ class OfferEvaluationService(AssignmentBaseService):
             incident.status = IncidentStatus.SEARCHING_SHOP
             self.db.add(incident)
             self.db.commit()
-            self._emit_incident_realtime_event(
-                incident_id=incident.id,
-                event_type="incident.status.changed",
-                payload={
-                    "status": incident.status,
-                    "offers_created": len(created_offers),
-                    "description": "Buscando taller para el incidente",
-                },
-                status=incident.status,
+            IncidentWorkflowService(self.db).searching_shop_started(
+                incident=incident,
+                offers_created=len(created_offers),
             )
             ShopOfferNotificationService(self.db).notify_all_pending_offers_in_incident_sync(
                 incident.id
@@ -166,34 +161,3 @@ class OfferEvaluationService(AssignmentBaseService):
 
         minutes = ceil((float(distance_km) / speed_kmh) * 60.0)
         return max(minutes, floor_minutes)
-
-    def _emit_incident_realtime_event(
-        self,
-        *,
-        incident_id: UUID,
-        event_type: str,
-        payload: dict,
-        status: str | None = None,
-    ) -> None:
-        try:
-            from app.modules.realtime.services.incident_realtime_service import (
-                IncidentRealtimeService,
-            )
-
-            IncidentRealtimeService(self.db).publish_incident_event_sync(
-                incident_id=incident_id,
-                event_type=event_type,
-                payload=payload,
-                status=status,
-            )
-        except Exception as error:
-            try:
-                self.db.rollback()
-            except Exception:
-                pass
-            logger.warning(
-                "No se pudo emitir evento realtime incident_id=%s type=%s error=%s",
-                incident_id,
-                event_type,
-                error,
-            )

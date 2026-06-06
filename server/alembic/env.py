@@ -24,7 +24,7 @@ from app.modules.repair_shop.models import (
 )
 from app.modules.realtime.models import DevicePushToken, IncidentLiveState, IncidentRealtimeEvent
 from app.modules.user.models import User, Vehicle
-from app.modules.wallet.models import Transactions, Wallet
+from app.modules.wallet.models import Payment, Transactions, Wallet
 
 # this is the Alembic Config object, which provides
 # access to the values within the .ini file in use.

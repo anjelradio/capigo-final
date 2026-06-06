@@ -19,6 +19,7 @@ export const API_ENDPOINTS = {
   REPAIR_SHOP: {
     CREATE: '/repair-shop/create',
     ME: '/repair-shop/me',
+    MY_DASHBOARD: '/repair-shop/me/dashboard',
     SERVICES: '/repair-shop/services',
     ASSIGN_MY_SERVICES: '/repair-shop/me/services',
     MY_SERVICES: '/repair-shop/me/services',

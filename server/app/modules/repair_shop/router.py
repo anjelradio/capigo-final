@@ -6,6 +6,7 @@ from app.modules.repair_shop.schemas import (
     AdminRecentServicesResponse,
     AdminRepairShopOverviewRead,
     AdminRepairShopsResponse,
+    RepairShopDashboardRead,
     JoinShopByCodeRequest,
     RepairShopAddressPreviewRead,
     RepairShopCreate,
@@ -21,6 +22,7 @@ from app.modules.repair_shop.schemas import (
 )
 from app.modules.repair_shop.services import (
     AdminService,
+    RepairShopDashboardService,
     ShopCatalogService,
     ShopInvitationService,
     ShopMechanicService,
@@ -135,6 +137,22 @@ def create_repair_shop(db: DBSession, payload: RepairShopCreate, user: CurrentUs
         "user": owner,
         "shop": shop,
     }
+
+
+@router.get(
+    "/me/dashboard",
+    response_model=RepairShopDashboardRead,
+    status_code=status.HTTP_200_OK,
+)
+def get_my_shop_dashboard(
+    db: DBSession,
+    user: CurrentUser,
+    period_days: int = Query(default=30, ge=1, le=365),
+):
+    return RepairShopDashboardService(db).get_my_dashboard(
+        owner_id=user.id,
+        period_days=period_days,
+    )
 
 
 @router.get(

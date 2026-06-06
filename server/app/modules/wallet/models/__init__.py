@@ -4,11 +4,14 @@ from .transactions import (
     TransactionType,
 )
 from .wallet import Wallet
+from .payment import Payment, PaymentProvider, PaymentStatus
 
 __all__ = [
     "Wallet",
     "Transactions",
-    "Transactions",
     "TransactionType",
     "TransactionStatus",
+    "Payment",
+    "PaymentProvider",
+    "PaymentStatus",
 ]

@@ -29,6 +29,14 @@ class IncidentRepository:
         )
         return self.db.exec(query).first()
 
+    def get_by_user_and_client_request_id(self, *, user_id: UUID, client_request_id: str) -> Incident | None:
+        query = select(Incident).where(
+            Incident.user_id == user_id,
+            Incident.client_request_id == client_request_id,
+            Incident.state == True,
+        )
+        return self.db.exec(query).first()
+
     def list_by_user(self, user_id: UUID) -> list[Incident]:
         query = (
             select(Incident)
@@ -49,6 +57,7 @@ class IncidentRepository:
             IncidentStatus.ASSIGNED,
             IncidentStatus.ON_THE_WAY,
             IncidentStatus.ARRIVED,
+            IncidentStatus.PAYMENT_PENDING,
         )
 
         query = (

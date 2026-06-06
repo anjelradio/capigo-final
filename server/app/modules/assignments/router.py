@@ -20,6 +20,7 @@ from app.modules.assignments.schemas import (
     MechanicAssignmentLocationUpdateRequest,
     MechanicAssignmentActionResponse,
     MechanicAssignmentCompleteRequest,
+    MechanicFinalReportRequest,
     MechanicServiceListResponse,
     MechanicTodayStatsRead,
     ClientIncidentOffersResponse,
@@ -312,6 +313,25 @@ def update_my_assignment_status(
         user_id=user.id,
         assignment_id=assignment_id,
         target_status=payload.status,
+    )
+
+
+@router.post(
+    "/me/mechanic/assignments/{assignment_id}/submit-final-report",
+    response_model=MechanicAssignmentActionResponse,
+    status_code=status.HTTP_200_OK,
+)
+def submit_my_assignment_final_report(
+    db: DBSession,
+    user: CurrentUser,
+    assignment_id: UUID,
+    payload: MechanicFinalReportRequest,
+):
+    return MechanicAssignmentService(db).submit_final_report(
+        user_id=user.id,
+        assignment_id=assignment_id,
+        description=payload.description,
+        final_price=payload.final_price,
     )
 
 

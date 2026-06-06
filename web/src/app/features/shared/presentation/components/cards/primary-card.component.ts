@@ -1,7 +1,7 @@
 import { CommonModule } from '@angular/common';
 import { Component, Input } from '@angular/core';
 
-type PrimaryCardVariant = 'default' | 'yellow' | 'aqua';
+type PrimaryCardVariant = 'default' | 'yellow' | 'aqua' | 'soft-blue' | 'soft-sand';
 
 @Component({
   selector: 'app-primary-card',
@@ -33,6 +33,10 @@ export class PrimaryCardComponent {
         return 'bg-[var(--dashboard-card-yellow)]';
       case 'aqua':
         return 'bg-[var(--dashboard-card-aqua)]';
+      case 'soft-blue':
+        return 'bg-[var(--dashboard-card-soft-blue)]';
+      case 'soft-sand':
+        return 'bg-[var(--dashboard-card-soft-sand)]';
       default:
         return 'bg-[var(--dashboard-card-default)]';
     }
@@ -43,6 +47,10 @@ export class PrimaryCardComponent {
       return this.textClass;
     }
 
+    if (this.variant === 'yellow') {
+      return 'text-[var(--app-accent-text)]';
+    }
+
     return 'text-[var(--app-text-primary)]';
   }
 
@@ -51,6 +59,17 @@ export class PrimaryCardComponent {
       return this.borderClass;
     }
 
-    return 'border border-[var(--dashboard-card-default-border)]';
+    switch (this.variant) {
+      case 'yellow':
+        return 'border border-[var(--dashboard-card-yellow-border)]';
+      case 'aqua':
+        return 'border border-[var(--dashboard-card-aqua-border)]';
+      case 'soft-blue':
+        return 'border border-[var(--dashboard-card-soft-blue-border)]';
+      case 'soft-sand':
+        return 'border border-[var(--dashboard-card-soft-sand-border)]';
+      default:
+        return 'border border-[var(--dashboard-card-default-border)]';
+    }
   }
 }

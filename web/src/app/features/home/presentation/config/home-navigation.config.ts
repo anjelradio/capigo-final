@@ -21,6 +21,11 @@ export interface HomeNavItem {
 
 const REPAIR_SHOP_NAV_ITEMS: HomeNavItem[] = [
   {
+    label: 'Inicio',
+    icon: LayoutDashboard,
+    path: APP_ROUTES.APP_OWNER_HOME,
+  },
+  {
     label: 'Solicitudes',
     icon: ClipboardCheck,
     path: APP_ROUTES.APP_OWNER_REQUESTS,

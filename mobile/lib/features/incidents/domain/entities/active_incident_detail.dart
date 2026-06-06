@@ -57,6 +57,8 @@ class ActiveIncidentAssignment {
     this.mechanicName,
     this.mechanicPhone,
     this.estimatedMinutes,
+    this.quotedPrice,
+    this.finalPrice,
   });
 
   final String requestAssignmentId;
@@ -69,4 +71,6 @@ class ActiveIncidentAssignment {
   final String? mechanicName;
   final String? mechanicPhone;
   final int? estimatedMinutes;
+  final double? quotedPrice;
+  final double? finalPrice;
 }

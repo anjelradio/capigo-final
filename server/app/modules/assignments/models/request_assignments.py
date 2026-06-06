@@ -13,6 +13,7 @@ class AssignmentStatus(str, Enum):
     PENDING = "pending"
     OFFERED = "offered"
     ACCEPTED = "accepted"
+    PAYMENT_PENDING = "payment_pending"
     REJECTED = "rejected"
     CANCELLED = "cancelled"
     EXPIRED = "expired"
@@ -46,6 +47,10 @@ class RequestAssignment(UUIDBaseModel, table=True):
         sa_column=Column(Numeric(10, 2), nullable=True),
     )
     quoted_price: Decimal | None = Field(
+        default=None,
+        sa_column=Column(Numeric(10, 2), nullable=True),
+    )
+    final_price: Decimal | None = Field(
         default=None,
         sa_column=Column(Numeric(10, 2), nullable=True),
     )

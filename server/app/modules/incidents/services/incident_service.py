@@ -25,6 +25,10 @@ from app.modules.incidents.repositories import (
     IncidentRepository,
     IncidentServiceReportRepository,
 )
+from app.modules.incidents.services.incident_workflow_service import IncidentWorkflowService
+from app.modules.incidents.services.incident_state_transition_service import (
+    IncidentStateTransitionService,
+)
 from app.modules.repair_shop.services.shop_profile_service import ShopProfileService
 from app.modules.repair_shop.repositories import ShopMechanicRepository
 from app.modules.repair_shop.repositories import RepairShopRepository
@@ -46,6 +50,7 @@ class IncidentService:
         self.request_assignment = RequestAssignmentRepository(db)
         self.repair_shop = RepairShopRepository(db)
         self.shop_mechanic = ShopMechanicRepository(db)
+        self.workflow = IncidentWorkflowService(db)
 
     def create_incident(
         self,
@@ -56,8 +61,20 @@ class IncidentService:
         description: str | None,
         audio: UploadFile | None,
         photos: list[UploadFile],
+        client_request_id: str | None = None,
     ) -> dict:
         self._validate_client_user(user_id)
+
+        normalized_client_request_id = self._normalize_client_request_id(client_request_id)
+        if normalized_client_request_id:
+            existing = self.incident.get_by_user_and_client_request_id(
+                user_id=user_id,
+                client_request_id=normalized_client_request_id,
+            )
+            if existing:
+                evidences = self.evidence.list_by_incident_id(existing.id)
+                return self._to_incident_read(existing, evidences)
+
         self._ensure_no_active_incident(user_id)
         self._validate_vehicle_owner(user_id, vehicle_id)
 
@@ -80,6 +97,7 @@ class IncidentService:
             address=resolved_address,
             latitude=latitude,
             longitude=longitude,
+            client_request_id=normalized_client_request_id,
             user_id=user_id,
             vehicle_id=vehicle_id,
         )
@@ -104,15 +122,7 @@ class IncidentService:
             raise
 
         evidences = self.evidence.list_by_incident_id(incident.id)
-        self._emit_incident_realtime_event(
-            incident_id=incident.id,
-            event_type="incident.status.changed",
-            payload={
-                "status": incident.status,
-                "description": "Incidente creado y pendiente de clasificacion",
-            },
-            status=incident.status,
-        )
+        self.workflow.incident_created(incident=incident)
         return self._to_incident_read(incident, evidences)
 
     def get_incident_by_id(self, user_id: UUID, incident_id: UUID) -> dict:
@@ -142,20 +152,7 @@ class IncidentService:
         if not incident:
             raise HTTPException(status_code=404, detail="Incidente no encontrado")
 
-        cancellable_statuses = {
-            IncidentStatus.PENDING,
-            IncidentStatus.CLASSIFYING,
-            IncidentStatus.CLASSIFIED,
-            IncidentStatus.SEARCHING_SHOP,
-            IncidentStatus.ASSIGNED,
-            IncidentStatus.ON_THE_WAY,
-            IncidentStatus.ARRIVED,
-        }
-        if incident.status not in cancellable_statuses:
-            raise HTTPException(
-                status_code=409,
-                detail="No se puede cancelar el incidente en su estado actual",
-            )
+        IncidentStateTransitionService.ensure_client_can_cancel(incident.status)
 
         assignments = self.request_assignment.list_by_incident(incident.id)
         for assignment in assignments:
@@ -165,7 +162,10 @@ class IncidentService:
                 self.db.add(assignment)
 
                 if assignment.mechanic_id:
-                    mechanic = self.shop_mechanic.get_by_id(assignment.mechanic_id)
+                    mechanic = self.shop_mechanic.get_active_by_id_and_shop(
+                        assignment.mechanic_id,
+                        assignment.repair_shop_id,
+                    )
                     if mechanic:
                         mechanic.is_available = True
                         self.db.add(mechanic)
@@ -179,16 +179,7 @@ class IncidentService:
             self.db.rollback()
             raise
 
-        self._emit_incident_realtime_event(
-            incident_id=incident.id,
-            event_type="incident.status.changed",
-            payload={
-                "status": IncidentStatus.CANCELLED.value,
-                "description": "Incidente cancelado por el cliente",
-                "cancelled_by": "client",
-            },
-            status=IncidentStatus.CANCELLED,
-        )
+        self.workflow.incident_cancelled_by_client(incident=incident)
 
         return {
             "incident_id": incident.id,
@@ -231,6 +222,8 @@ class IncidentService:
                 "mechanic_name": mechanic_contact["full_name"] if mechanic_contact else None,
                 "mechanic_phone": mechanic_contact["phone"] if mechanic_contact else None,
                 "estimated_minutes": active_assignment.estimated_minutes,
+                "quoted_price": active_assignment.quoted_price,
+                "final_price": active_assignment.final_price,
             }
 
         return {
@@ -472,6 +465,13 @@ class IncidentService:
             detail="Debes enviar descripcion en texto o audio del incidente",
         )
 
+    def _normalize_client_request_id(self, client_request_id: str | None) -> str | None:
+        if client_request_id is None:
+            return None
+
+        normalized = client_request_id.strip()
+        return normalized or None
+
     def _upload_incident_photos(
         self,
         incident_id: UUID,
@@ -595,6 +595,7 @@ class IncidentService:
             "vehicle_id": incident.vehicle_id,
             "problem_id": incident.problem_id,
             "created_date": incident.created_date,
+            "client_request_id": incident.client_request_id,
             "evidences": [
                 {
                     "id": evidence.id,
@@ -603,34 +604,3 @@ class IncidentService:
                 for evidence in evidences
             ],
         }
-
-    def _emit_incident_realtime_event(
-        self,
-        *,
-        incident_id: UUID,
-        event_type: str,
-        payload: dict,
-        status: str | None = None,
-    ) -> None:
-        try:
-            from app.modules.realtime.services.incident_realtime_service import (
-                IncidentRealtimeService,
-            )
-
-            IncidentRealtimeService(self.db).publish_incident_event_sync(
-                incident_id=incident_id,
-                event_type=event_type,
-                payload=payload,
-                status=status,
-            )
-        except Exception as error:
-            try:
-                self.db.rollback()
-            except Exception:
-                pass
-            logger.warning(
-                "No se pudo emitir evento realtime incident_id=%s type=%s error=%s",
-                incident_id,
-                event_type,
-                error,
-            )

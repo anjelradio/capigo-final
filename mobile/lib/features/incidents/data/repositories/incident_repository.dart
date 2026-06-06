@@ -16,6 +16,7 @@ class IncidentRepository {
     required double latitude,
     required double longitude,
     required List<String> imagePaths,
+    required String clientRequestId,
   }) {
     return _incidentApi.createIncident(
       vehicleId: vehicleId,
@@ -24,6 +25,7 @@ class IncidentRepository {
       latitude: latitude,
       longitude: longitude,
       imagePaths: imagePaths,
+      clientRequestId: clientRequestId,
     );
   }
 
@@ -101,5 +103,18 @@ class IncidentRepository {
       assignmentId: assignmentId,
     );
     return IncidentMapper.clientOfferActionResultFromJson(json);
+  }
+
+  Future<PaymentCheckoutSession> createIncidentCheckoutSession({
+    required String incidentId,
+  }) async {
+    final json = await _incidentApi.createIncidentCheckoutSession(
+      incidentId: incidentId,
+    );
+    final session = IncidentMapper.paymentCheckoutSessionFromJson(json);
+    if (session.checkoutUrl.trim().isEmpty) {
+      throw CustomError('No fue posible obtener el enlace de pago');
+    }
+    return session;
   }
 }

@@ -62,10 +62,14 @@
   --dashboard-nav-blue: var(--app-accent);
   --dashboard-card-default: var(--app-card-bg);
   --dashboard-card-default-border: var(--app-card-border);
-  --dashboard-card-yellow: var(--app-card-bg);
-  --dashboard-card-aqua: var(--app-card-bg);
-  --dashboard-card-soft-blue: var(--app-card-bg);
-  --dashboard-card-soft-sand: var(--app-card-bg);
+  --dashboard-card-yellow: var(--app-accent);
+  --dashboard-card-yellow-border: var(--app-accent-hover);
+  --dashboard-card-aqua: #29c6af;
+  --dashboard-card-aqua-border: #16937f;
+  --dashboard-card-soft-blue: #5b8cff;
+  --dashboard-card-soft-blue-border: #365fd6;
+  --dashboard-card-soft-sand: #e79a2f;
+  --dashboard-card-soft-sand-border: #bb7010;
 }
 
 body {

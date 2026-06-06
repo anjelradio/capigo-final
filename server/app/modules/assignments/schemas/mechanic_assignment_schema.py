@@ -72,6 +72,11 @@ class MechanicAssignmentCompleteRequest(SQLModel):
     labor_price: float
 
 
+class MechanicFinalReportRequest(SQLModel):
+    description: str
+    final_price: float
+
+
 class MechanicTodayStatsRead(SQLModel):
     completed_today: int
     cancelled_today: int

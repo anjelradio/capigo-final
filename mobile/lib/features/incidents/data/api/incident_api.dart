@@ -35,6 +35,7 @@ class IncidentApi {
     required double latitude,
     required double longitude,
     required List<String> imagePaths,
+    required String clientRequestId,
   }) async {
     try {
       final photos = <MultipartFile>[];
@@ -44,6 +45,7 @@ class IncidentApi {
 
       final payload = FormData.fromMap({
         'vehicle_id': vehicleId,
+        'client_request_id': clientRequestId,
         if ((description ?? '').trim().isNotEmpty) 'description': description,
         if ((audioPath ?? '').trim().isNotEmpty)
           'audio': await MultipartFile.fromFile(audioPath!),
@@ -261,6 +263,27 @@ class IncidentApi {
       rethrow;
     } catch (_) {
       throw CustomError('No fue posible rechazar la oferta');
+    }
+  }
+
+  Future<Map<String, dynamic>?> createIncidentCheckoutSession({
+    required String incidentId,
+  }) async {
+    try {
+      final response = await dio.post(
+        '/payments/incidents/$incidentId/checkout-session',
+      );
+      final data = response.data;
+      if (data == null) return null;
+      if (data is Map<String, dynamic>) return data;
+      if (data is Map) return data.cast<String, dynamic>();
+      return null;
+    } on DioException catch (e) {
+      _throwParsedDioError(e, 'No fue posible iniciar el pago');
+    } on CustomError {
+      rethrow;
+    } catch (_) {
+      throw CustomError('No fue posible iniciar el pago');
     }
   }
 }

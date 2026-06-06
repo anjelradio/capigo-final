@@ -1,5 +1,4 @@
 import logging
-import asyncio
 from datetime import UTC, datetime
 from uuid import UUID
 
@@ -7,6 +6,7 @@ from fastapi import HTTPException
 
 from app.modules.assignments.models import AssignmentStatus
 from app.modules.incidents.models import IncidentStatus
+from app.modules.incidents.services.incident_workflow_service import IncidentWorkflowService
 from app.modules.realtime.services import PushNotificationService
 
 from .base_service import AssignmentBaseService
@@ -70,23 +70,9 @@ class ClientOfferService(AssignmentBaseService):
         self.db.add(assignment)
         self.db.commit()
 
-        self._emit_incident_realtime_event(
-            incident_id=incident.id,
-            event_type="assignment.offer.rejected",
-            payload={
-                "assignment_id": assignment.id,
-                "description": "El cliente rechazo una oferta",
-            },
-            status=incident.status,
-            assignment_id=assignment.id,
-            repair_shop_id=assignment.repair_shop_id,
-            mechanic_id=assignment.mechanic_id,
-        )
-        self._emit_shop_offer_status_changed(
-            assignment_id=assignment.id,
-            incident_id=incident.id,
-            repair_shop_id=assignment.repair_shop_id,
-            status=AssignmentStatus.REJECTED.value,
+        IncidentWorkflowService(self.db).client_offer_rejected(
+            incident=incident,
+            assignment=assignment,
         )
 
         return {
@@ -153,48 +139,11 @@ class ClientOfferService(AssignmentBaseService):
 
         self.db.commit()
 
-        self._emit_incident_realtime_event(
-            incident_id=incident.id,
-            event_type="assignment.client.accepted",
-            payload={
-                "assignment_id": assignment.id,
-                "repair_shop_id": assignment.repair_shop_id,
-                "mechanic_id": assignment.mechanic_id,
-                "status": IncidentStatus.ASSIGNED.value,
-                "description": "El cliente acepto una oferta",
-            },
-            status=IncidentStatus.ASSIGNED,
-            assignment_id=assignment.id,
-            repair_shop_id=assignment.repair_shop_id,
-            mechanic_id=assignment.mechanic_id,
+        IncidentWorkflowService(self.db).client_offer_accepted(
+            incident=incident,
+            assignment=assignment,
+            rejected_assignments=remaining,
         )
-        self._emit_incident_realtime_event(
-            incident_id=incident.id,
-            event_type="incident.status.changed",
-            payload={
-                "status": IncidentStatus.ASSIGNED.value,
-                "assignment_id": assignment.id,
-                "mechanic_id": assignment.mechanic_id,
-                "description": "Incidente asignado por aceptacion del cliente",
-            },
-            status=IncidentStatus.ASSIGNED,
-            assignment_id=assignment.id,
-            repair_shop_id=assignment.repair_shop_id,
-            mechanic_id=assignment.mechanic_id,
-        )
-        self._emit_shop_offer_status_changed(
-            assignment_id=assignment.id,
-            incident_id=incident.id,
-            repair_shop_id=assignment.repair_shop_id,
-            status=AssignmentStatus.ACCEPTED.value,
-        )
-        for candidate in remaining:
-            self._emit_shop_offer_status_changed(
-                assignment_id=candidate.id,
-                incident_id=incident.id,
-                repair_shop_id=candidate.repair_shop_id,
-                status=AssignmentStatus.REJECTED.value,
-            )
 
         self._send_mechanic_assignment_push(
             mechanic_user_id=mechanic_link.user_id,
@@ -227,77 +176,6 @@ class ClientOfferService(AssignmentBaseService):
             logger.warning(
                 "No se pudo enviar push a mecanico user_id=%s incident_id=%s error=%s",
                 mechanic_user_id,
-                incident_id,
-                error,
-            )
-
-    def _emit_incident_realtime_event(
-        self,
-        *,
-        incident_id: UUID,
-        event_type: str,
-        payload: dict,
-        status: str | None = None,
-        assignment_id: UUID | None = None,
-        repair_shop_id: UUID | None = None,
-        mechanic_id: UUID | None = None,
-    ) -> None:
-        try:
-            from app.modules.realtime.services.incident_realtime_service import (
-                IncidentRealtimeService,
-            )
-
-            IncidentRealtimeService(self.db).publish_incident_event_sync(
-                incident_id=incident_id,
-                event_type=event_type,
-                payload=payload,
-                status=status,
-                assignment_id=assignment_id,
-                repair_shop_id=repair_shop_id,
-                mechanic_id=mechanic_id,
-            )
-        except Exception as error:
-            try:
-                self.db.rollback()
-            except Exception:
-                pass
-            logger.warning(
-                "No se pudo emitir evento realtime incident_id=%s type=%s error=%s",
-                incident_id,
-                event_type,
-                error,
-            )
-
-    def _emit_shop_offer_status_changed(
-        self,
-        *,
-        assignment_id: UUID,
-        incident_id: UUID,
-        repair_shop_id: UUID,
-        status: str,
-    ) -> None:
-        try:
-            from app.modules.realtime.services.connection_manager import (
-                shop_realtime_manager,
-            )
-
-            asyncio.run(
-                shop_realtime_manager.send_to_shop(
-                    repair_shop_id,
-                    event={
-                        "type": "assignment.offer.status_changed",
-                        "payload": {
-                            "assignment_id": assignment_id,
-                            "incident_id": incident_id,
-                            "status": status,
-                        },
-                    },
-                )
-            )
-        except Exception as error:
-            logger.warning(
-                "No se pudo emitir shop status assignment_id=%s incident_id=%s error=%s",
-                assignment_id,
                 incident_id,
                 error,
             )
