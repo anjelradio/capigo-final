@@ -11,6 +11,7 @@ from app.core.config import settings
 from app.core.db import engine
 from app.modules.incidents.models import Incident, IncidentStatus, Problem
 from app.modules.incidents.repositories import EvidenceRepository, IncidentRepository
+from app.modules.incidents.services import IncidentStateTransitionService
 from app.modules.incidents.services.incident_workflow_service import IncidentWorkflowService
 
 logger = logging.getLogger(__name__)
@@ -27,6 +28,7 @@ class IncidentClassificationService:
         self.incident = IncidentRepository(db)
         self.evidence = EvidenceRepository(db)
         self.workflow = IncidentWorkflowService(db)
+        self.incident_transition = IncidentStateTransitionService(db)
 
     @classmethod
     def classify_incident_background(
@@ -77,7 +79,7 @@ class IncidentClassificationService:
         return incident
 
     def _mark_incident_classifying(self, incident: Incident) -> None:
-        incident.status = IncidentStatus.CLASSIFYING
+        self.incident_transition.transition_incident(incident, IncidentStatus.CLASSIFYING)
         incident.ai_attempts += 1
         self.db.add(incident)
         self.db.commit()
@@ -85,8 +87,7 @@ class IncidentClassificationService:
         self.workflow.incident_classifying(incident=incident)
 
     def _mark_incident_failed(self, incident: Incident) -> None:
-        incident.status = IncidentStatus.FAILED
-        self.db.add(incident)
+        self.incident_transition.transition_incident(incident, IncidentStatus.FAILED)
         self.db.commit()
         self.workflow.incident_classification_failed(incident=incident)
 
@@ -219,8 +220,7 @@ class IncidentClassificationService:
 
         selected_problem = self._find_problem_by_id(problem_id)
         if not selected_problem:
-            incident.status = IncidentStatus.FAILED
-            self.db.add(incident)
+            self.incident_transition.transition_incident(incident, IncidentStatus.FAILED)
             self.db.commit()
             raise HTTPException(
                 status_code=400,
@@ -228,13 +228,13 @@ class IncidentClassificationService:
             )
 
         incident.problem_id = selected_problem.id
-        incident.status = (
+        target_status = (
             IncidentStatus.CLASSIFIED
             if confidence >= self.MIN_CONFIDENCE
             else IncidentStatus.FAILED
         )
+        self.incident_transition.transition_incident(incident, target_status)
 
-        self.db.add(incident)
         self.db.commit()
         self.db.refresh(incident)
 

@@ -12,7 +12,6 @@ import { EditShopLocationTriggerComponent } from './edit-shop-location-trigger.c
   template: `
     <app-primary-card
       variant="default"
-      backgroundClass="bg-[var(--dashboard-card-soft-blue)]"
       customClass="space-y-4"
     >
       <header class="flex items-start justify-between gap-3">

@@ -255,26 +255,34 @@ class _ActiveServiceScreenState extends ConsumerState<ActiveServiceScreen>
                           Column(
                             crossAxisAlignment: CrossAxisAlignment.stretch,
                             children: [
-                              ActiveServiceRealtimeStatusBanner(
-                                status: currentStatus,
-                                isConnecting: realtimeState.isConnecting,
-                                isConnected: realtimeState.isConnected,
-                              ),
-                              const SizedBox(height: 12),
-                              ActiveServiceDetailsSection(
-                                detail: detail,
-                                clientDisplayName: clientDisplayName,
-                              ),
-                              const SizedBox(height: 14),
-                              if (isPaymentPending)
+                              if (isPaymentPending) ...[
+                                _PaymentPriceSummaryCard(
+                                  quotedPrice: detail.assignment?.quotedPrice,
+                                  finalPrice: detail.assignment?.finalPrice,
+                                  deliveryPrice: detail.incident.deliveryPrice,
+                                  currency: 'BOB',
+                                ),
+                                const SizedBox(height: 14),
                                 _PaymentPendingCard(
                                   finalPrice: detail.assignment?.finalPrice,
+                                  deliveryPrice: detail.incident.deliveryPrice,
                                   currency: 'BOB',
                                   isLoading: activeState.isCreatingPayment,
                                   errorMessage: activeState.paymentErrorMessage,
                                   onPayTap: () => _startPayment(activeNotifier),
-                                )
-                              else
+                                ),
+                              ] else ...[
+                                ActiveServiceRealtimeStatusBanner(
+                                  status: currentStatus,
+                                  isConnecting: realtimeState.isConnecting,
+                                  isConnected: realtimeState.isConnected,
+                                ),
+                                const SizedBox(height: 12),
+                                ActiveServiceDetailsSection(
+                                  detail: detail,
+                                  clientDisplayName: clientDisplayName,
+                                ),
+                                const SizedBox(height: 14),
                                 SizedBox(
                                   width: double.infinity,
                                   child: OutlinedButton.icon(
@@ -304,6 +312,7 @@ class _ActiveServiceScreenState extends ConsumerState<ActiveServiceScreen>
                                     ),
                                   ),
                                 ),
+                              ],
                             ],
                           ),
                         const SizedBox(height: 24),
@@ -528,9 +537,115 @@ class _ActiveServiceHeader extends StatelessWidget {
   }
 }
 
+class _PaymentPriceSummaryCard extends StatelessWidget {
+  const _PaymentPriceSummaryCard({
+    required this.quotedPrice,
+    required this.finalPrice,
+    required this.deliveryPrice,
+    required this.currency,
+  });
+
+  final double? quotedPrice;
+  final double? finalPrice;
+  final double? deliveryPrice;
+  final String currency;
+
+  @override
+  Widget build(BuildContext context) {
+    return Container(
+      decoration: BoxDecoration(
+        color: const Color(0xFF18231E),
+        borderRadius: BorderRadius.circular(20),
+        border: Border.all(
+          color: AppColors.appAccent.withValues(alpha: 0.46),
+        ),
+        boxShadow: [
+          BoxShadow(
+            color: AppColors.appAccent.withValues(alpha: 0.08),
+            blurRadius: 22,
+            offset: const Offset(0, 12),
+          ),
+        ],
+      ),
+      padding: const EdgeInsets.all(16),
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.stretch,
+        children: [
+          const Text(
+            'RESUMEN DE COSTOS',
+            style: TextStyle(
+              color: AppColors.appAccent,
+              fontWeight: FontWeight.w800,
+              fontSize: 13,
+              letterSpacing: 0.8,
+            ),
+          ),
+          const SizedBox(height: 14),
+          _PriceRow(label: 'Precio cotizado', value: quotedPrice, currency: currency),
+          const SizedBox(height: 8),
+          _PriceRow(label: 'Precio final', value: finalPrice, currency: currency),
+          const SizedBox(height: 8),
+          _PriceRow(label: 'Costo de delivery', value: deliveryPrice, currency: currency),
+          const SizedBox(height: 12),
+          Container(height: 1, color: AppColors.appNavBorder),
+          const SizedBox(height: 12),
+          _PriceRow(
+            label: 'Total',
+            value: (finalPrice ?? 0) + (deliveryPrice ?? 0),
+            currency: currency,
+            bold: true,
+          ),
+        ],
+      ),
+    );
+  }
+}
+
+class _PriceRow extends StatelessWidget {
+  const _PriceRow({
+    required this.label,
+    required this.value,
+    required this.currency,
+    this.bold = false,
+  });
+
+  final String label;
+  final double? value;
+  final String currency;
+  final bool bold;
+
+  @override
+  Widget build(BuildContext context) {
+    return Row(
+      children: [
+        Text(
+          label,
+          style: TextStyle(
+            color: bold
+                ? AppColors.appTextOnDark
+                : AppColors.appTextOnDarkMuted,
+            fontWeight: bold ? FontWeight.w800 : FontWeight.w600,
+            fontSize: bold ? 15 : 13,
+          ),
+        ),
+        const Spacer(),
+        Text(
+          value != null ? '${value!.toStringAsFixed(2)} $currency' : '---',
+          style: TextStyle(
+            color: bold ? AppColors.appAccent : AppColors.appTextOnDark,
+            fontWeight: FontWeight.w900,
+            fontSize: bold ? 16 : 14,
+          ),
+        ),
+      ],
+    );
+  }
+}
+
 class _PaymentPendingCard extends StatelessWidget {
   const _PaymentPendingCard({
     required this.finalPrice,
+    required this.deliveryPrice,
     required this.currency,
     required this.isLoading,
     required this.errorMessage,
@@ -538,6 +653,7 @@ class _PaymentPendingCard extends StatelessWidget {
   });
 
   final double? finalPrice;
+  final double? deliveryPrice;
   final String currency;
   final bool isLoading;
   final String errorMessage;
@@ -546,6 +662,7 @@ class _PaymentPendingCard extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     final hasPrice = finalPrice != null;
+    final total = (finalPrice ?? 0) + (deliveryPrice ?? 0);
 
     return Container(
       decoration: BoxDecoration(
@@ -634,7 +751,7 @@ class _PaymentPendingCard extends StatelessWidget {
                   ),
                   const Spacer(),
                   Text(
-                    '${finalPrice!.toStringAsFixed(2)} $currency',
+                    '${total.toStringAsFixed(2)} $currency',
                     style: const TextStyle(
                       color: AppColors.appTextOnDark,
                       fontWeight: FontWeight.w900,

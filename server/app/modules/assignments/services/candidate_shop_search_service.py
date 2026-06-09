@@ -1,11 +1,16 @@
 from uuid import UUID
 
 from app.modules.incidents.models import IncidentStatus
+from app.modules.incidents.services import IncidentStateTransitionService
 
 from .base_service import AssignmentBaseService
 
 
 class CandidateShopSearchService(AssignmentBaseService):
+    def __init__(self, db):
+        super().__init__(db)
+        self.incident_transition = IncidentStateTransitionService(db)
+
     def search_candidate_shops(
         self,
         *,
@@ -23,8 +28,7 @@ class CandidateShopSearchService(AssignmentBaseService):
         self._ensure_classified_incident(incident)
 
         if incident.status != IncidentStatus.SEARCHING_SHOP:
-            incident.status = IncidentStatus.SEARCHING_SHOP
-            self.db.add(incident)
+            self.incident_transition.transition_incident(incident, IncidentStatus.SEARCHING_SHOP)
             self.db.commit()
             self.db.refresh(incident)
 

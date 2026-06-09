@@ -11,7 +11,6 @@ import { GenerateInvitationTriggerComponent } from './generate-invitation-trigge
   template: `
     <app-primary-card
       variant="default"
-      backgroundClass="bg-[var(--dashboard-card-soft-blue)]"
       customClass="h-full space-y-5"
     >
       <header class="flex items-center justify-between gap-3">

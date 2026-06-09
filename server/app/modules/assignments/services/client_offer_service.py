@@ -5,7 +5,9 @@ from uuid import UUID
 from fastapi import HTTPException
 
 from app.modules.assignments.models import AssignmentStatus
+from app.modules.assignments.services.assignment_state_transition_service import AssignmentStateTransitionService
 from app.modules.incidents.models import IncidentStatus
+from app.modules.incidents.services import IncidentStateTransitionService
 from app.modules.incidents.services.incident_workflow_service import IncidentWorkflowService
 from app.modules.realtime.services import PushNotificationService
 
@@ -15,6 +17,10 @@ logger = logging.getLogger(__name__)
 
 
 class ClientOfferService(AssignmentBaseService):
+    def __init__(self, db):
+        super().__init__(db)
+        self.incident_transition = IncidentStateTransitionService(db)
+        self.assignment_transition = AssignmentStateTransitionService(db)
     def list_my_incident_offers(self, *, user_id: UUID, incident_id: UUID) -> dict:
         self._ensure_client_role(user_id, detail="Solo clientes pueden revisar ofertas")
         incident = self._get_client_incident_or_404(user_id=user_id, incident_id=incident_id)
@@ -65,7 +71,7 @@ class ClientOfferService(AssignmentBaseService):
         if assignment.status != AssignmentStatus.OFFERED:
             raise HTTPException(status_code=409, detail="La oferta ya no se puede rechazar")
 
-        assignment.status = AssignmentStatus.REJECTED
+        self.assignment_transition.transition_assignment(assignment, AssignmentStatus.REJECTED)
         assignment.responded_at = datetime.now(UTC)
         self.db.add(assignment)
         self.db.commit()
@@ -116,14 +122,14 @@ class ClientOfferService(AssignmentBaseService):
             raise HTTPException(status_code=409, detail="El mecanico ya no esta disponible")
 
         now_utc = datetime.now(UTC)
-        assignment.status = AssignmentStatus.ACCEPTED
+        self.assignment_transition.transition_assignment(assignment, AssignmentStatus.ACCEPTED)
         assignment.responded_at = now_utc
         self.db.add(assignment)
 
         mechanic_link.is_available = False
         self.db.add(mechanic_link)
 
-        incident.status = IncidentStatus.ASSIGNED
+        self.incident_transition.transition_incident(incident, IncidentStatus.ASSIGNED)
         incident.delivery_price = assignment.delivery_price
         incident.distance_km = assignment.distance_km
         self.db.add(incident)
@@ -133,7 +139,7 @@ class ClientOfferService(AssignmentBaseService):
             exclude_assignment_id=assignment.id,
         )
         for candidate in remaining:
-            candidate.status = AssignmentStatus.REJECTED
+            self.assignment_transition.transition_assignment(candidate, AssignmentStatus.REJECTED)
             candidate.responded_at = now_utc
             self.db.add(candidate)
 

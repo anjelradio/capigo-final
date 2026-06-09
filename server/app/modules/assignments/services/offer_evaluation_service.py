@@ -7,6 +7,7 @@ from uuid import UUID
 from app.core.config import settings
 from app.modules.assignments.models import AssignmentStatus, RequestAssignment
 from app.modules.incidents.models import IncidentStatus
+from app.modules.incidents.services import IncidentStateTransitionService
 from app.modules.incidents.services.incident_workflow_service import IncidentWorkflowService
 from app.modules.realtime.services import ShopOfferNotificationService
 
@@ -17,6 +18,10 @@ logger = logging.getLogger(__name__)
 
 
 class OfferEvaluationService(AssignmentBaseService):
+    def __init__(self, db: Session):
+        super().__init__(db)
+        self.incident_transition = IncidentStateTransitionService(db)
+
     def evaluate_and_create_offers(
         self,
         *,
@@ -120,8 +125,7 @@ class OfferEvaluationService(AssignmentBaseService):
         self.db.commit()
 
         if created_offers:
-            incident.status = IncidentStatus.SEARCHING_SHOP
-            self.db.add(incident)
+            self.incident_transition.transition_incident(incident, IncidentStatus.SEARCHING_SHOP)
             self.db.commit()
             IncidentWorkflowService(self.db).searching_shop_started(
                 incident=incident,

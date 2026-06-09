@@ -14,7 +14,6 @@ import { RepairShopActionsService } from '../../actions/repair-shop/repair-shop-
   template: `
     <app-primary-card
         variant="default"
-        backgroundClass="bg-[var(--dashboard-card-soft-sand)]"
         customClass="relative h-full space-y-5 overflow-hidden"
       >
         <img

@@ -8,6 +8,7 @@ from sqlmodel import Session
 from app.core.config import settings
 from app.modules.assignments.repositories import RequestAssignmentRepository
 from app.modules.assignments.models import AssignmentStatus
+from app.modules.assignments.services.assignment_state_transition_service import AssignmentStateTransitionService
 from app.modules.incidents.services.incident_workflow_service import IncidentWorkflowEvent
 
 from .connection_manager import shop_realtime_manager
@@ -19,6 +20,7 @@ class ShopOfferNotificationService:
     def __init__(self, db: Session):
         self.db = db
         self.request_assignment = RequestAssignmentRepository(db)
+        self.assignment_transition = AssignmentStateTransitionService(db)
 
     async def notify_next_offer_in_incident_queue(self, incident_id: UUID) -> dict:
         pending = self.request_assignment.list_pending_not_notified_by_incident(incident_id)
@@ -177,7 +179,7 @@ class ShopOfferNotificationService:
             if assignment.status != AssignmentStatus.PENDING:
                 continue
 
-            assignment.status = AssignmentStatus.EXPIRED
+            self.assignment_transition.transition_assignment(assignment, AssignmentStatus.EXPIRED)
             assignment.responded_at = now_utc
             self.db.add(assignment)
             expired_count += 1
@@ -218,7 +220,7 @@ class ShopOfferNotificationService:
         if not self._is_assignment_expired(assignment.expires_at):
             return False
 
-        assignment.status = AssignmentStatus.EXPIRED
+        self.assignment_transition.transition_assignment(assignment, AssignmentStatus.EXPIRED)
         assignment.responded_at = datetime.now(UTC)
         self.db.add(assignment)
         self.db.commit()

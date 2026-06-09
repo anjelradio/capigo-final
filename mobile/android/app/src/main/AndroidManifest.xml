@@ -6,7 +6,7 @@
     <uses-permission android:name="android.permission.POST_NOTIFICATIONS" />
 
     <application
-        android:label="mobile"
+        android:label="Capigo"
         android:name="${applicationName}"
         android:icon="@mipmap/launcher_icon">
         <activity

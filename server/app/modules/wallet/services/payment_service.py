@@ -3,18 +3,18 @@ from datetime import UTC, datetime
 from decimal import Decimal, ROUND_HALF_UP
 from uuid import UUID
 
-import stripe
 from fastapi import HTTPException
 
 from app.core.config import settings
 from app.modules.assignments.models import AssignmentStatus
 from app.modules.assignments.repositories import RequestAssignmentRepository
+from app.modules.assignments.services.assignment_state_transition_service import AssignmentStateTransitionService
 from app.modules.incidents.services.client_service_report_email_service import (
     ClientServiceReportEmailService,
 )
 from app.modules.incidents.models import IncidentStatus
 from app.modules.incidents.repositories import IncidentRepository, IncidentServiceReportRepository
-from app.modules.incidents.services import IncidentWorkflowService
+from app.modules.incidents.services import IncidentStateTransitionService, IncidentWorkflowService
 from app.modules.realtime.services import PushNotificationService
 from app.modules.user.models import UserRole
 from app.modules.user.repositories import UserRepository
@@ -27,6 +27,8 @@ from app.modules.wallet.models import (
     Transactions,
 )
 from app.modules.wallet.repositories import PaymentRepository, WalletRepository
+from app.modules.wallet.services.wallet_debit_service import WalletDebitService
+from app.modules.wallet.services.stripe_service import StripeService
 
 logger = logging.getLogger(__name__)
 
@@ -59,6 +61,10 @@ class PaymentService:
         self.report = IncidentServiceReportRepository(db)
         self.user = UserRepository(db)
         self.wallet = WalletRepository(db)
+        self.wallet_debit = WalletDebitService(db)
+        self.incident_transition = IncidentStateTransitionService(db)
+        self.assignment_transition = AssignmentStateTransitionService(db)
+        self.stripe_service = StripeService()
 
     def create_incident_checkout_session(self, *, user_id: UUID, incident_id: UUID) -> dict:
         self._ensure_stripe_configured()
@@ -108,37 +114,19 @@ class PaymentService:
         self.db.refresh(payment)
 
         try:
-            stripe.api_key = settings.STRIPE_SECRET_KEY
-            session = stripe.checkout.Session.create(
-                mode="payment",
-                payment_method_types=["card"],
-                line_items=[
-                    {
-                        "price_data": {
-                            "currency": payment.currency,
-                            "product_data": {
-                                "name": "Servicio mecanico Capigo",
-                                "description": f"Incidente {incident.id} - mano de obra y traslado",
-                            },
-                            "unit_amount": self._to_stripe_minor_units(amount, payment.currency),
-                        },
-                        "quantity": 1,
-                    }
-                ],
-                metadata={
-                    "payment_id": str(payment.id),
-                    "incident_id": str(incident.id),
-                    "assignment_id": str(assignment.id),
-                    "user_id": str(user.id),
-                },
-                success_url=settings.STRIPE_SUCCESS_URL,
-                cancel_url=settings.STRIPE_CANCEL_URL,
+            session = self.stripe_service.create_checkout_session(
+                currency=payment.currency,
+                amount_minor_units=self._to_stripe_minor_units(amount, payment.currency),
+                incident_id=str(incident.id),
+                payment_id=str(payment.id),
+                assignment_id=str(assignment.id),
+                user_id=str(user.id),
+                product_description=f"Incidente {incident.id} - mano de obra y traslado",
             )
         except Exception as error:
             payment.status = PaymentStatus.FAILED
             self.db.add(payment)
             self.db.commit()
-            logger.exception("No se pudo crear checkout de Stripe payment_id=%s", payment.id)
             raise HTTPException(status_code=502, detail=f"Stripe no pudo crear el checkout: {error}")
 
         payment.status = PaymentStatus.CHECKOUT_CREATED
@@ -191,13 +179,7 @@ class PaymentService:
 
         if payment.status == PaymentStatus.PAID:
             return self._verify_response(payment=payment, paid=True, detail="Pago ya confirmado")
-
-        try:
-            stripe.api_key = settings.STRIPE_SECRET_KEY
-            session = stripe.checkout.Session.retrieve(normalized_session_id)
-        except Exception as error:
-            logger.exception("No se pudo verificar checkout de Stripe session_id=%s", normalized_session_id)
-            raise HTTPException(status_code=502, detail=f"Stripe no pudo verificar el pago: {error}")
+        session = self.stripe_service.retrieve_checkout_session(normalized_session_id)
 
         payment_intent_id = getattr(session, "payment_intent", None)
         if payment_intent_id:
@@ -234,10 +216,9 @@ class PaymentService:
         payment.paid_at = datetime.now(UTC).replace(tzinfo=None)
         self.db.add(payment)
 
-        incident.status = IncidentStatus.COMPLETED
-        self.db.add(incident)
+        self.incident_transition.transition_incident(incident, IncidentStatus.COMPLETED)
 
-        assignment.status = AssignmentStatus.COMPLETED
+        self.assignment_transition.transition_assignment(assignment, AssignmentStatus.COMPLETED)
         assignment.responded_at = datetime.now(UTC)
         self.db.add(assignment)
 
@@ -261,39 +242,12 @@ class PaymentService:
 
     def _debit_shop_wallet_if_possible(self, *, assignment) -> dict | None:
         debit_amount = self._resolve_delivery_charge(assignment)
-        if debit_amount <= Decimal("0.00"):
-            return None
-
-        wallet = self.wallet.get_active_by_repair_shop_id(assignment.repair_shop_id)
-        if not wallet:
-            logger.warning(
-                "No se encontro billetera activa para debito de servicio shop_id=%s assignment_id=%s",
-                assignment.repair_shop_id,
-                assignment.id,
-            )
-            return None
-
-        balance_before = Decimal(str(wallet.balance)).quantize(Decimal("0.01"), rounding=ROUND_HALF_UP)
-        balance_after = (balance_before - debit_amount).quantize(Decimal("0.01"), rounding=ROUND_HALF_UP)
-        wallet.balance = balance_after
-        wallet.modified_date = datetime.utcnow()
-        self.db.add(wallet)
-
-        transaction = Transactions(
-            type=TransactionType.DEBIT_SERVICE,
-            status=TransactionStatus.POSTED,
-            amount=debit_amount,
-            balance_before=balance_before,
-            balance_after=balance_after,
-            description=f"Debito por servicio pagado assignment_id={assignment.id}",
-            wallet_id=wallet.id,
+        return self.wallet_debit.debit_for_completed_service(
+            assignment_id=assignment.id,
+            repair_shop_id=assignment.repair_shop_id,
+            debit_amount=debit_amount,
+            is_payment_flow=True,
         )
-        self.db.add(transaction)
-        return {
-            "balance_before": balance_before,
-            "balance_after": balance_after,
-            "debit_amount": debit_amount,
-        }
 
     def _resolve_delivery_charge(self, assignment) -> Decimal:
         source_value = assignment.delivery_price

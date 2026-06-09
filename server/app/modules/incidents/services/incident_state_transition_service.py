@@ -1,6 +1,10 @@
+import logging
 from fastapi import HTTPException
+from sqlmodel import Session
 
-from app.modules.incidents.models import IncidentStatus
+from app.modules.incidents.models import Incident, IncidentStatus
+
+logger = logging.getLogger(__name__)
 
 
 class IncidentStateTransitionService:
@@ -19,6 +23,9 @@ class IncidentStateTransitionService:
         IncidentStatus.ON_THE_WAY: (IncidentStatus.ARRIVED, IncidentStatus.CANCELLED),
         IncidentStatus.ARRIVED: (IncidentStatus.COMPLETED, IncidentStatus.CANCELLED),
     }
+
+    def __init__(self, db: Session):
+        self.db = db
 
     @classmethod
     def ensure_client_can_cancel(cls, status: IncidentStatus) -> None:
@@ -45,3 +52,18 @@ class IncidentStateTransitionService:
             status_code=409,
             detail=f"No se puede cambiar de {current.value} a {target.value}",
         )
+
+    def transition_incident(
+        self,
+        incident: Incident,
+        target_status: IncidentStatus,
+    ) -> None:
+        """Centralized method to transition incident status and persist in session."""
+        logger.info(
+            "Transitioning incident_id=%s from=%s to=%s",
+            incident.id,
+            incident.status,
+            target_status,
+        )
+        incident.status = target_status
+        self.db.add(incident)
