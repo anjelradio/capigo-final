@@ -70,7 +70,7 @@ class PaymentService:
         self._ensure_stripe_configured()
         user = self.user.get_by_id(user_id)
         if not user or user.role != UserRole.CLIENT:
-            raise HTTPException(status_code=403, detail="Solo clientes pueden pagar incidentes")
+            raise HTTPException(status_code=403, detail="Solo clientes pueden pagar")
 
         incident = self.incident.get_by_id_and_user(incident_id, user_id)
         if not incident:
@@ -291,7 +291,7 @@ class PaymentService:
                 error,
             )
 
-    def _send_client_service_report_email(self, *, incident, assignment, payment) -> None:
+    def R_send_client_service_report_email(self, *, incident, assignment, payment) -> None:
         try:
             ClientServiceReportEmailService(self.db).send_payment_completed_email(
                 incident=incident,
